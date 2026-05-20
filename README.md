@@ -20,7 +20,7 @@ log_ids/
 
 ## Quick Start
 
-###  Interactive Menu (Recommended)
+### Interactive Menu (Recommended)
 Run the script without any arguments to open the interactive Terminal User Interface:
 ```bash
 python shield.py
@@ -62,13 +62,17 @@ python shield.py --demo --json-only
 | R001    | SQL Injection Attempt   | HIGH     | SQLi patterns in URL / body            |
 | R002    | XSS Attempt             | MEDIUM   | Script/event handler injection         |
 | R003    | Path Traversal          | HIGH     | `../` or encoded variants              |
-| R004    | Sensitive Path Access   | MEDIUM   | `.env`, `.git`, `wp-config`, etc.      |
+| R004    | Sensitive Path Access   | MEDIUM   | Access to admin or actuator endpoints  |
 | R005    | Security Scanner        | HIGH     | Known scanner user-agent strings       |
-| R006    | Authentication Failure  | LOW      | SSH/HTTP auth failure messages         |
+| R006    | Authentication Failure  | LOW      | SSH/HTTP auth failure logs / HTTP 401  |
 | R007    | Server Error            | LOW      | HTTP 5xx responses                     |
 | R008    | Brute Force Attack      | CRITICAL | ≥5 failures from 1 IP in 5 min        |
 | R009    | Directory Scanning      | HIGH     | ≥20 404s from 1 IP in 5 min           |
 | R010    | Possible DoS Attack     | CRITICAL | ≥200 requests from 1 IP in 5 min      |
+| R011    | LFI/RFI Attempt         | HIGH     | Local/Remote File Inclusion patterns   |
+| R012    | Command Injection       | HIGH     | OS command injection shell syntax      |
+| R013    | Web Shell Access        | HIGH     | Access attempts targeting web shells   |
+| R014    | Sensitive Config Access | HIGH     | Downloading backups or credentials     |
 
 ---
 
@@ -76,6 +80,7 @@ python shield.py --demo --json-only
 
 - **Apache / Nginx** combined access log
 - **SSH / syslog** auth logs (`/var/log/auth.log`, `/var/log/secure`)
+- **JSON** - Structured JSON log format (`ip`/`client_ip`, `user`, `path`/`uri`, `status`, `message`, `timestamp`)
 - **Generic** ISO timestamp + message
 - **Custom** — falls back to IP extraction from any line
 
@@ -116,3 +121,17 @@ def _check_my_rule(self, e: LogEntry):
 ```
 
 Then call `self._check_my_rule(e)` inside `feed()`.
+
+---
+
+## Work Proof (Screenshots)
+
+### Interactive TUI Menu
+![Interactive TUI Menu](images/terminal_menu.png)
+
+### Terminal Log Analysis Output
+![Terminal Log Analysis Output](images/terminal_analysis.png)
+
+### Visual Web Dashboard
+![Visual Web Dashboard](images/dashboard_overview.png)
+

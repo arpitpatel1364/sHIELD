@@ -141,6 +141,63 @@ def parse_line(line: str, source: str = "unknown") -> Optional[LogEntry]:
     if not line or line.startswith("#"):
         return None
 
+    # Handle structured JSON logs
+    if line.startswith("{") and line.endswith("}"):
+        try:
+            data = json.loads(line)
+            ip = data.get("ip") or data.get("client_ip") or data.get("host") or (IP_RE.search(line) and IP_RE.search(line).group())
+            user = data.get("user") or data.get("username")
+            path = data.get("path") or data.get("uri") or data.get("url") or data.get("request")
+            method = data.get("method") or data.get("request_method")
+            
+            status_val = data.get("status") or data.get("response_code")
+            status = None
+            if status_val is not None:
+                try:
+                    status = int(status_val)
+                except (ValueError, TypeError):
+                    # Fallback in case status is a string like "200 OK"
+                    status_str = str(status_val).split()[0]
+                    if status_str.isdigit():
+                        status = int(status_str)
+            
+            msg = data.get("message") or data.get("msg") or line[:200]
+            
+            ts = None
+            ts_str = data.get("timestamp") or data.get("time") or data.get("@timestamp")
+            if ts_str is not None:
+                if isinstance(ts_str, (int, float)):
+                    try:
+                        # Handle milliseconds vs seconds epoch
+                        if ts_str > 1e11:
+                            ts = datetime.fromtimestamp(ts_str / 1000.0)
+                        else:
+                            ts = datetime.fromtimestamp(ts_str)
+                    except Exception:
+                        pass
+                else:
+                    ts_str_str = str(ts_str)
+                    for fmt in ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"]:
+                        try:
+                            ts = datetime.strptime(ts_str_str, fmt)
+                            break
+                        except Exception:
+                            pass
+            
+            return LogEntry(
+                raw=line,
+                timestamp=ts or datetime.now(),
+                ip=ip,
+                user=user,
+                method=method,
+                path=path,
+                status=status,
+                message=msg,
+                source=source,
+            )
+        except Exception:
+            pass
+
     for p in PARSERS:
         m = p["pattern"].search(line)
         if not m:
@@ -158,6 +215,9 @@ def parse_line(line: str, source: str = "unknown") -> Optional[LogEntry]:
                     except Exception:
                         pass
                 break
+
+        if ts and ts.year == 1900:
+            ts = ts.replace(year=datetime.now().year)
 
         status = None
         if gd.get("status") and gd["status"].isdigit():
@@ -200,8 +260,23 @@ class DetectionEngine:
     PATH_TRAVERSAL = re.compile(r"\.\.[\\/]|%2e%2e[\\/]|%252e", re.IGNORECASE)
     SCANNER_UA     = re.compile(r"(?:nikto|sqlmap|nmap|masscan|zgrab|nuclei|dirbuster|gobuster)", re.IGNORECASE)
     SENSITIVE_PATHS = re.compile(
-        r"(?:/etc/passwd|/etc/shadow|\.env|\.git/config|wp-config\.php"
-        r"|/admin|/phpmyadmin|/actuator|/api/v\d+/admin|\.bak|\.sql)",
+        r"(?:/admin|/phpmyadmin|/actuator|/api/v\d+/admin)",
+        re.IGNORECASE,
+    )
+    LFI_RFI = re.compile(
+        r"(?:=https?://|=ftp://|/etc/passwd|/etc/hosts|/win\.ini|boot\.ini)",
+        re.IGNORECASE,
+    )
+    CMD_INJECTION = re.compile(
+        r"(?:[;&|`]\s*(?:cat|wget|curl|ping|id|whoami|uname|sh|bash|powershell|cmd\.exe)\b|\$\(.*\))",
+        re.IGNORECASE,
+    )
+    WEB_SHELL = re.compile(
+        r"(?:shell\.php|cmd\.php|c99\.php|r57\.php|eval-stdin\.php|backdoor\.php|shell\.jsp|cmd\.jsp|cmd\.aspx)",
+        re.IGNORECASE,
+    )
+    CREDENTIAL_LEAK = re.compile(
+        r"(?:\.env|\.git/config|wp-config\.php|database\.yml|config\.json|settings\.py|backup\.sql|dump\.sql|\.bak|\.sql)",
         re.IGNORECASE,
     )
 
@@ -226,6 +301,10 @@ class DetectionEngine:
         self._check_scanner(entry)
         self._check_auth_failure(entry)
         self._check_server_error(entry)
+        self._check_lfi_rfi(entry)
+        self._check_cmd_injection(entry)
+        self._check_web_shell(entry)
+        self._check_cred_leak(entry)
 
     def _track_counts(self, e: LogEntry):
         now = e.timestamp or datetime.now()
@@ -239,13 +318,32 @@ class DetectionEngine:
         if (("failed" in msg or "invalid" in msg or "failure" in msg) or (e.status in (401, 403))) and e.ip:
             self._ip_fail[e.ip].append(now)
 
-    def _window(self, timestamps: list[datetime], anchor: datetime) -> list[datetime]:
-        # Normalise both to naive UTC for comparison
+    def _get_max_window_count(self, ts_list: list[datetime]) -> tuple[int, list[datetime]]:
+        if not ts_list:
+            return 0, []
+        
         def naive(dt: datetime) -> datetime:
             return dt.replace(tzinfo=None) if dt.tzinfo else dt
-        anchor_n = naive(anchor)
-        cutoff = anchor_n - timedelta(minutes=self.WINDOW_MINUTES)
-        return [t for t in timestamps if naive(t) >= cutoff]
+            
+        sorted_ts = sorted(ts_list, key=naive)
+        max_count = 0
+        best_window = []
+        
+        left = 0
+        n = len(sorted_ts)
+        window_delta = timedelta(minutes=self.WINDOW_MINUTES)
+        
+        for right in range(n):
+            right_time = naive(sorted_ts[right])
+            while right_time - naive(sorted_ts[left]) > window_delta:
+                left += 1
+            
+            count = right - left + 1
+            if count > max_count:
+                max_count = count
+                best_window = sorted_ts[left:right+1]
+                
+        return max_count, best_window
 
     def _emit(self, rule_id, name, level, desc, entry, evidence=None):
         self.threats.append(ThreatEvent(
@@ -264,40 +362,74 @@ class DetectionEngine:
         if self.SQLI_PATTERNS.search(target):
             self._emit("R001", "SQL Injection Attempt", ThreatLevel.HIGH,
                        f"Possible SQLi in request from {e.ip}", e,
-                       [f"Matched in: {target[:200]}"])
+                       [f"Matched SQLi: {target[:200]}"])
         if self.XSS_PATTERNS.search(target):
             self._emit("R002", "XSS Attempt", ThreatLevel.MEDIUM,
-                       f"Possible XSS payload from {e.ip}", e)
+                       f"Possible XSS payload from {e.ip}", e,
+                       [f"Matched XSS: {target[:200]}"])
 
     def _check_traversal(self, e: LogEntry):
         target = " ".join(filter(None, [e.path, e.raw]))
         if self.PATH_TRAVERSAL.search(target):
             self._emit("R003", "Path Traversal Attempt", ThreatLevel.HIGH,
-                       f"Directory traversal detected from {e.ip}", e)
+                       f"Directory traversal detected from {e.ip}", e,
+                       [f"Matched traversal: {target[:200]}"])
 
     def _check_sensitive(self, e: LogEntry):
         target = " ".join(filter(None, [e.path, e.raw]))
         if self.SENSITIVE_PATHS.search(target):
             self._emit("R004", "Sensitive Path Access", ThreatLevel.MEDIUM,
-                       f"Access to sensitive resource by {e.ip}", e,
+                       f"Access to sensitive admin/management resource by {e.ip}", e,
                        [f"Path: {e.path or e.raw[:100]}"])
 
     def _check_scanner(self, e: LogEntry):
         if self.SCANNER_UA.search(e.raw):
             self._emit("R005", "Security Scanner Detected", ThreatLevel.HIGH,
-                       f"Known vulnerability scanner UA from {e.ip}", e)
+                       f"Known vulnerability scanner UA from {e.ip}", e,
+                       [f"Scanner UA: {e.raw[:200]}"])
 
     def _check_auth_failure(self, e: LogEntry):
         msg = (e.message or e.raw).lower()
-        if any(x in msg for x in ("failed password", "authentication failure", "invalid user", "failed login")):
-            if e.status in (401, 403) or True:
-                self._emit("R006", "Authentication Failure", ThreatLevel.LOW,
-                           f"Login failure for user '{e.user}' from {e.ip}", e)
+        is_auth_msg = any(x in msg for x in ("failed password", "authentication failure", "invalid user", "failed login", "unauthorized"))
+        is_auth_status = e.status in (401, 403)
+        if is_auth_msg or is_auth_status:
+            self._emit("R006", "Authentication Failure", ThreatLevel.LOW,
+                       f"Login failure for user '{e.user or 'unknown'}' from {e.ip}", e,
+                       [f"Failure log: {e.raw[:200]}"])
 
     def _check_server_error(self, e: LogEntry):
         if e.status and e.status >= 500:
             self._emit("R007", "Server Error", ThreatLevel.LOW,
-                       f"HTTP {e.status} response logged", e)
+                       f"HTTP {e.status} response logged", e,
+                       [f"Status {e.status} message: {e.raw[:100]}"])
+
+    def _check_lfi_rfi(self, e: LogEntry):
+        target = " ".join(filter(None, [e.path, e.message, e.raw]))
+        if self.LFI_RFI.search(target):
+            self._emit("R011", "LFI/RFI Attempt", ThreatLevel.HIGH,
+                       f"Possible Local/Remote File Inclusion from {e.ip}", e,
+                       [f"Matched LFI/RFI: {target[:200]}"])
+
+    def _check_cmd_injection(self, e: LogEntry):
+        target = " ".join(filter(None, [e.path, e.message, e.raw]))
+        if self.CMD_INJECTION.search(target):
+            self._emit("R012", "Command Injection Attempt", ThreatLevel.HIGH,
+                       f"Possible command injection from {e.ip}", e,
+                       [f"Matched command injection: {target[:200]}"])
+
+    def _check_web_shell(self, e: LogEntry):
+        target = " ".join(filter(None, [e.path, e.raw]))
+        if self.WEB_SHELL.search(target):
+            self._emit("R013", "Web Shell Access Attempt", ThreatLevel.HIGH,
+                       f"Web shell file access detected from {e.ip}", e,
+                       [f"File: {e.path or e.raw[:100]}"])
+
+    def _check_cred_leak(self, e: LogEntry):
+        target = " ".join(filter(None, [e.path, e.raw]))
+        if self.CREDENTIAL_LEAK.search(target):
+            self._emit("R014", "Sensitive Config Access", ThreatLevel.HIGH,
+                       f"Access to configuration/backup file from {e.ip}", e,
+                       [f"File: {e.path or e.raw[:100]}"])
 
     # ── aggregate rules (call after all entries fed) ──────────────────────────
 
@@ -307,66 +439,57 @@ class DetectionEngine:
         self._agg_dos(all_entries)
 
     def _agg_brute_force(self, entries: list[LogEntry]):
-        seen: dict[str, bool] = {}
-        for e in entries:
-            if not e.ip:
+        for ip, fail_ts in self._ip_fail.items():
+            if not ip:
                 continue
-            anchor = e.timestamp or datetime.now()
-            recent = self._window(self._ip_fail[e.ip], anchor)
-            if len(recent) >= self.BRUTE_THRESHOLD and e.ip not in seen:
-                seen[e.ip] = True
+            max_cnt, peak_window = self._get_max_window_count(fail_ts)
+            if max_cnt >= self.BRUTE_THRESHOLD:
                 self.threats.append(ThreatEvent(
                     rule_id="R008",
                     rule_name="Brute Force Attack",
                     level=ThreatLevel.CRITICAL,
-                    description=f"Brute force: {len(recent)} failed logins from {e.ip} in {self.WINDOW_MINUTES}min",
-                    ip=e.ip,
-                    user=e.user,
-                    timestamp=anchor,
-                    count=len(recent),
-                    evidence=[f"{len(recent)} failures in {self.WINDOW_MINUTES} minutes"],
+                    description=f"Brute force: {max_cnt} failed logins from {ip} in {self.WINDOW_MINUTES}min",
+                    ip=ip,
+                    user=None,
+                    timestamp=peak_window[-1],
+                    count=max_cnt,
+                    evidence=[f"{max_cnt} failures in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
                 ))
 
     def _agg_port_scan(self, entries: list[LogEntry]):
-        seen: dict[str, bool] = {}
-        for e in entries:
-            if not e.ip:
+        for ip, ts_404 in self._ip_404.items():
+            if not ip:
                 continue
-            anchor = e.timestamp or datetime.now()
-            recent = self._window(self._ip_404[e.ip], anchor)
-            if len(recent) >= self.SCAN_THRESHOLD and e.ip not in seen:
-                seen[e.ip] = True
+            max_cnt, peak_window = self._get_max_window_count(ts_404)
+            if max_cnt >= self.SCAN_THRESHOLD:
                 self.threats.append(ThreatEvent(
                     rule_id="R009",
                     rule_name="Directory Scanning",
                     level=ThreatLevel.HIGH,
-                    description=f"Directory scan: {len(recent)} 404s from {e.ip} in {self.WINDOW_MINUTES}min",
-                    ip=e.ip,
+                    description=f"Directory scan: {max_cnt} 404s from {ip} in {self.WINDOW_MINUTES}min",
+                    ip=ip,
                     user=None,
-                    timestamp=anchor,
-                    count=len(recent),
-                    evidence=[f"{len(recent)} 404 responses in {self.WINDOW_MINUTES} minutes"],
+                    timestamp=peak_window[-1],
+                    count=max_cnt,
+                    evidence=[f"{max_cnt} 404 responses in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
                 ))
 
     def _agg_dos(self, entries: list[LogEntry]):
-        seen: dict[str, bool] = {}
-        for e in entries:
-            if not e.ip:
+        for ip, req_ts in self._ip_req.items():
+            if not ip:
                 continue
-            anchor = e.timestamp or datetime.now()
-            recent = self._window(self._ip_req[e.ip], anchor)
-            if len(recent) >= self.DOS_THRESHOLD and e.ip not in seen:
-                seen[e.ip] = True
+            max_cnt, peak_window = self._get_max_window_count(req_ts)
+            if max_cnt >= self.DOS_THRESHOLD:
                 self.threats.append(ThreatEvent(
                     rule_id="R010",
                     rule_name="Possible DoS Attack",
                     level=ThreatLevel.CRITICAL,
-                    description=f"High request rate: {len(recent)} reqs from {e.ip} in {self.WINDOW_MINUTES}min",
-                    ip=e.ip,
+                    description=f"High request rate: {max_cnt} reqs from {ip} in {self.WINDOW_MINUTES}min",
+                    ip=ip,
                     user=None,
-                    timestamp=anchor,
-                    count=len(recent),
-                    evidence=[f"{len(recent)} requests in {self.WINDOW_MINUTES} minutes"],
+                    timestamp=peak_window[-1],
+                    count=max_cnt,
+                    evidence=[f"{max_cnt} requests in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
                 ))
 
 
@@ -389,7 +512,7 @@ class LogAnalyzer:
 
         self.engine.finalize(entries)
 
-        # Deduplicate threats (same rule+IP within 10 events)
+        # Deduplicate threats
         threats = self._dedup(self.engine.threats)
 
         # Stats
@@ -429,7 +552,10 @@ class LogAnalyzer:
         for t in threats:
             key = f"{t.rule_id}:{t.ip}:{t.user}"
             if key in seen:
-                seen[key].count += 1
+                seen[key].count += t.count
+                for ev in t.evidence:
+                    if ev not in seen[key].evidence and len(seen[key].evidence) < 5:
+                        seen[key].evidence.append(ev)
             else:
                 seen[key] = t
         return list(seen.values())

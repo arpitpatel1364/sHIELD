@@ -13,6 +13,9 @@ import termios
 import select
 import glob
 import webbrowser
+import http.server
+import urllib.parse
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -43,7 +46,7 @@ def color(text: str, code: str) -> str:
 
 def print_banner():
     banner = f"""
-{CYAN}{BOLD}
+{GREEN}{BOLD}
   ███████╗██╗  ██╗██╗███████╗██╗     ██████╗
   ██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗
   ███████╗███████║██║█████╗  ██║     ██║  ██║
@@ -310,18 +313,142 @@ def pause_and_continue():
     sys.stdout.flush()
 
 
+class DashboardHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def do_GET(self):
+        parsed_path = urllib.parse.urlparse(self.path)
+        if parsed_path.path in ('/', '/dashboard.html', '/index.html'):
+            try:
+                content = Path('dashboard.html').read_text(encoding='utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(content.encode('utf-8'))
+            except Exception as e:
+                self.send_error(404, f"dashboard.html not found: {e}")
+        elif parsed_path.path in ('/ui.css', '/style.css'):
+            try:
+                filename = 'style.css' if parsed_path.path == '/style.css' or Path('style.css').exists() else 'ui.css'
+                content = Path(filename).read_text(encoding='utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/css; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(content.encode('utf-8'))
+            except Exception as e:
+                self.send_error(404, f"CSS not found: {e}")
+        elif parsed_path.path == '/app.js':
+            try:
+                content = Path('app.js').read_text(encoding='utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(content.encode('utf-8'))
+            except Exception as e:
+                self.send_error(404, f"app.js not found: {e}")
+        elif parsed_path.path == '/api/sample_logs':
+            try:
+                from core.sample_generator import generate_sample_logs
+                logs = generate_sample_logs()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(logs.encode('utf-8'))
+            except Exception as e:
+                self.send_error(500, str(e))
+        else:
+            self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        parsed_path = urllib.parse.urlparse(self.path)
+        if parsed_path.path == '/api/analyze':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length)
+                
+                try:
+                    payload = json.loads(post_data.decode('utf-8'))
+                    log_text = payload.get('log_text', '')
+                    source = payload.get('source', 'web_upload')
+                except json.JSONDecodeError:
+                    log_text = post_data.decode('utf-8')
+                    source = 'web_upload'
+                
+                from core.analyzer import LogAnalyzer
+                analyzer = LogAnalyzer()
+                report = analyzer.analyze(log_text, source=source)
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(report.to_dict()).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        else:
+            self.send_error(404, "Not Found")
+            
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+
+def start_server_on_free_port(start_port=8000):
+    port = start_port
+    while True:
+        try:
+            server_address = ('', port)
+            httpd = http.server.HTTPServer(server_address, DashboardHandler)
+            break
+        except OSError:
+            port += 1
+            if port > 8050:
+                print(f"  {LEVEL_COLORS['CRITICAL']}Error: No free port found in range 8000-8050.{RESET}")
+                return
+    
+    print(f"\n{GREEN}❯ Professional Web Dashboard server running at:{RESET}")
+    print(f"   {BOLD}http://localhost:{port}/{RESET}")
+    print(f"\n{CYAN}Press Ctrl+C to stop the server and return to the main menu.{RESET}")
+    
+    def open_browser():
+        import time
+        time.sleep(0.5)
+        try:
+            import webbrowser
+            webbrowser.open(f"http://localhost:{port}/")
+        except Exception:
+            pass
+            
+    threading.Thread(target=open_browser, daemon=True).start()
+    
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print(f"\n{LEVEL_COLORS['CRITICAL']}Server stopped.{RESET}")
+    finally:
+        httpd.server_close()
+
+
 def run_interactive_menu():
     sys.stdout.write("\033[H\033[J")
     sys.stdout.flush()
     while True:
         print_banner()
         main_options = [
-            "📊  Run Demo Analysis (Attack Simulations)",
-            "🔍  Analyze a Log File",
-            "💾  Generate and Save Demo Log File",
-            "📥  Analyze from Standard Input (stdin)",
-            "🌐  Open Visual Dashboard (dashboard.html)",
-            "❌  Exit"
+            " >> Run Demo Analysis (Attack Simulations)",
+            " >> Analyze a Log File",
+            " >> Generate and Save Sample Log File",
+            " >> Analyze from Standard Input (stdin)",
+            " >> Open Visual Dashboard (recommended)",
+            " >> Exit"
         ]
         
         choice = choose_option("What would you like to do?", main_options)
@@ -351,16 +478,16 @@ def run_interactive_menu():
                 sys.stdout.flush()
                 continue
             if save_choice == 1:
-                output_path = prompt_input("Enter output path: ", "reports/demo_report.json")
+                output_path = prompt_input("Enter output path: ", "reports/sample_report.json")
                 if output_path is None:
                     sys.stdout.write("\033[H\033[J")
                     sys.stdout.flush()
                     continue
             
-            print(f"\n{GREEN}⚡ Running Demo Analysis...{RESET}\n")
+            print(f"\n{GREEN}❯ Running Demo Analysis...{RESET}\n")
             log_text = generate_sample_logs()
             analyzer = LogAnalyzer()
-            report = analyzer.analyze(log_text, source="demo")
+            report = analyzer.analyze(log_text, source="sample_logs")
             print_report(report, verbose=verbose)
             
             if output_path:
@@ -415,7 +542,7 @@ def run_interactive_menu():
                 pause_and_continue()
                 continue
                 
-            print(f"\n{GREEN}⚡ Analyzing {file_path}...{RESET}\n")
+            print(f"\n{GREEN}❯ Analyzing {file_path}...{RESET}\n")
             analyzer = LogAnalyzer()
             report = analyzer.analyze(log_text, source=file_path)
             print_report(report, verbose=verbose)
@@ -432,19 +559,19 @@ def run_interactive_menu():
             pause_and_continue()
             
         elif choice == 2:
-            output_path = prompt_input("Enter path to save demo logs: ", "demo_logs.log")
+            output_path = prompt_input("Enter path to save sample logs: ", "sample_security_logs.log")
             if output_path is None:
                 sys.stdout.write("\033[H\033[J")
                 sys.stdout.flush()
                 continue
                 
-            print(f"\n{GREEN}⚡ Generating demo logs...{RESET}")
+            print(f"\n{GREEN}❯ Generating sample security logs...{RESET}")
             log_text = generate_sample_logs()
             out = Path(output_path)
             try:
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_text(log_text)
-                print(f"  {GREEN}✓{RESET} Successfully generated {len(log_text.splitlines())} demo log entries.")
+                print(f"  {GREEN}✓{RESET} Successfully generated {len(log_text.splitlines())} sample log entries.")
                 print(f"  {GREEN}✓{RESET} Saved to: {BOLD}{out.resolve()}{RESET}")
             except Exception as e:
                 print(f"  {LEVEL_COLORS['CRITICAL']}Error saving logs file: {e}{RESET}")
@@ -452,7 +579,7 @@ def run_interactive_menu():
             pause_and_continue()
             
         elif choice == 3:
-            print(f"\n{BOLD}📥 Reading logs from stdin.{RESET}")
+            print(f"\n{BOLD}Reading logs from stdin.{RESET}")
             print("Paste your logs below, then press Ctrl+D (on a new line) to finish.\n")
             
             try:
@@ -467,21 +594,16 @@ def run_interactive_menu():
                 pause_and_continue()
                 continue
                 
-            print(f"\n{GREEN}⚡ Analyzing stdin logs...{RESET}\n")
+            print(f"\n{GREEN}❯ Analyzing stdin logs...{RESET}\n")
             analyzer = LogAnalyzer()
             report = analyzer.analyze(log_text, source="stdin")
             print_report(report, verbose=False)
             pause_and_continue()
             
         elif choice == 4:
-            print(f"\n{GREEN}🌐 Opening dashboard.html in your default web browser...{RESET}")
-            try:
-                webbrowser.open(f"file://{os.path.abspath('dashboard.html')}")
-                print(f"  {GREEN}✓{RESET} Opened successfully!")
-            except Exception as e:
-                print(f"  {LEVEL_COLORS['CRITICAL']}Failed to open automatically: {e}{RESET}")
-                print(f"  Please open {BOLD}dashboard.html{RESET} manually in your browser.")
-            pause_and_continue()
+            start_server_on_free_port()
+            sys.stdout.write("\033[H\033[J")
+            sys.stdout.flush()
 
 
 def main():
@@ -501,10 +623,15 @@ Examples:
     parser.add_argument("-f", "--file",    help="Log file to analyze")
     parser.add_argument("--stdin",  action="store_true", help="Read from stdin")
     parser.add_argument("--demo",   action="store_true", help="Run on generated sample logs")
+    parser.add_argument("--server", action="store_true", help="Start local web dashboard server")
     parser.add_argument("-o", "--output", help="Save JSON report to file")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show evidence snippets")
     parser.add_argument("--json-only", action="store_true", help="Output raw JSON only")
     args = parser.parse_args()
+
+    if args.server:
+        start_server_on_free_port()
+        sys.exit(0)
 
     if not (args.file or args.stdin or args.demo):
         if sys.stdin.isatty():
@@ -520,9 +647,9 @@ Examples:
     # Load log text
     if args.demo:
         log_text = generate_sample_logs()
-        source = "demo"
+        source = "sample_logs"
         if not args.json_only:
-            print(f"  {GREEN}✓{RESET} Generated {len(log_text.splitlines())} demo log entries\n")
+            print(f"  {GREEN}✓{RESET} Generated {len(log_text.splitlines())} sample log entries\n")
     elif args.stdin:
         log_text = sys.stdin.read()
         source = "stdin"
