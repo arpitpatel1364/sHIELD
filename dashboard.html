@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIELD — Intrusion Detection Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c10;
+    --bg1:       #0f1117;
+    --bg2:       #161b24;
+    --bg3:       #1c2330;
+    --border:    #1e2840;
+    --border2:   #2a3654;
+    --text:      #c9d1e0;
+    --text-dim:  #6b7a94;
+    --accent:    #00d4ff;
+    --accent2:   #0090b0;
+    --red:       #ff4d4d;
+    --orange:    #ff8c42;
+    --yellow:    #ffd166;
+    --green:     #06d6a0;
+    --blue:      #118ab2;
+    --purple:    #9b5de5;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui:   'Syne', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 56px;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo::before {
+    content: '';
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .header-meta {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  main { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+
+  /* ── Upload zone ── */
+  #upload-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--bg1);
+    margin-bottom: 1.5rem;
+  }
+  #upload-zone:hover, #upload-zone.drag { border-color: var(--accent); background: rgba(0,212,255,0.04); }
+  #upload-zone h2 { font-size: 1.1rem; color: var(--text); margin-bottom: 0.4rem; }
+  #upload-zone p { font-size: 0.82rem; color: var(--text-dim); font-family: var(--font-mono); }
+  #upload-zone input { display: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0.5rem 1.2rem;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    background: var(--bg2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .btn:hover { border-color: var(--accent); background: rgba(0,212,255,0.06); color: var(--accent); }
+  .btn.primary { border-color: var(--accent); color: var(--accent); }
+  .btn.primary:hover { background: rgba(0,212,255,0.12); }
+
+  .upload-actions { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.2rem; flex-wrap: wrap; }
+
+  /* ── Risk meter ── */
+  #risk-bar-wrap {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+  .risk-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.8rem; }
+  .risk-label { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); letter-spacing: 0.1em; }
+  .risk-score-display { font-family: var(--font-mono); font-size: 2rem; font-weight: 700; }
+  .risk-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .risk-fill { height: 100%; border-radius: 3px; transition: width 1s cubic-bezier(.4,0,.2,1); }
+
+  /* ── Stat cards ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .stat-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: var(--border2); }
+  .stat-card .label { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+  .stat-card .value { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; }
+
+  /* ── Section headers ── */
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin: 1.5rem 0 0.75rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Threat table ── */
+  #threats-section { display: none; }
+  .threat-table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.76rem; }
+  th {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    background: var(--bg1);
+  }
+  td {
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    max-width: 320px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .badge-CRITICAL { background: rgba(255,77,77,0.15); color: var(--red); border: 1px solid rgba(255,77,77,0.3); }
+  .badge-HIGH     { background: rgba(255,140,66,0.15); color: var(--orange); border: 1px solid rgba(255,140,66,0.3); }
+  .badge-MEDIUM   { background: rgba(255,209,102,0.12); color: var(--yellow); border: 1px solid rgba(255,209,102,0.25); }
+  .badge-LOW      { background: rgba(17,138,178,0.15); color: #5bc8e8; border: 1px solid rgba(17,138,178,0.3); }
+  .badge-INFO     { background: rgba(107,122,148,0.15); color: var(--text-dim); border: 1px solid rgba(107,122,148,0.2); }
+
+  /* ── Charts row ── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  @media (max-width: 700px) { .charts-row { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+  }
+  .chart-card h3 { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); letter-spacing: 0.1em; margin-bottom: 1rem; }
+
+  /* ── IP bar chart ── */
+  .ip-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-family: var(--font-mono); font-size: 0.72rem; }
+  .ip-row .ip-addr { color: var(--text); min-width: 130px; }
+  .ip-row .ip-bar { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .ip-row .ip-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 1s ease; }
+  .ip-row .ip-count { color: var(--text-dim); min-width: 30px; text-align: right; }
+
+  /* ── Timeline ── */
+  #timeline-canvas { width: 100%; height: 80px; display: block; }
+
+  /* ── Filter row ── */
+  .filter-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+  .filter-btn {
+    padding: 3px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.08em;
+  }
+  .filter-btn.active { background: rgba(0,212,255,0.1); border-color: var(--accent); color: var(--accent); }
+  .filter-btn:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+
+  /* ── Log feed ── */
+  #log-feed {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+  }
+  .log-line { padding: 4px 1rem; line-height: 1.6; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-line:last-child { border-bottom: none; }
+  .log-line.CRITICAL { color: var(--red); }
+  .log-line.HIGH     { color: var(--orange); }
+  .log-line.MEDIUM   { color: var(--yellow); }
+  .log-line.LOW      { color: #5bc8e8; }
+  .log-line.ok       { color: var(--text-dim); }
+
+  /* ── Empty / loading state ── */
+  #empty-state { text-align: center; padding: 3rem; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem; }
+  #loading { display: none; text-align: center; padding: 2rem; color: var(--accent); font-family: var(--font-mono); font-size: 0.8rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SHIELD // IDS</div>
+  <div class="header-meta" id="meta-info">Intrusion Detection System v1.0<br>Awaiting log input</div>
+</header>
+
+<main>
+
+  <!-- Upload Zone -->
+  <div id="upload-zone" onclick="document.getElementById('file-input').click()"
+       ondragover="ev(event,'drag')" ondragleave="ev(event,'')" ondrop="drop(event)">
+    <input type="file" id="file-input" accept=".log,.txt,.access,*" onchange="fileChosen(this)">
+    <h2>⬆ Drop log file or click to browse</h2>
+    <p>Apache · Nginx · SSH · syslog · generic timestamped logs</p>
+    <div class="upload-actions">
+      <button class="btn primary" onclick="event.stopPropagation();runDemo()">▶ Run Demo Analysis</button>
+      <button class="btn" onclick="event.stopPropagation();pasteMode()">⌨ Paste Log Text</button>
+      <button class="btn" onclick="event.stopPropagation();downloadDemoLogs()">📥 Download Demo Logs</button>
+    </div>
+  </div>
+
+  <!-- Paste area (hidden by default) -->
+  <div id="paste-area" style="display:none;margin-bottom:1.5rem">
+    <textarea id="paste-input" style="width:100%;height:180px;background:var(--bg1);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:0.74rem;padding:1rem;resize:vertical" placeholder="Paste log lines here…"></textarea>
+    <div style="display:flex;gap:0.75rem;margin-top:0.5rem">
+      <button class="btn primary" onclick="analyzePaste()">Analyze</button>
+      <button class="btn" onclick="document.getElementById('paste-area').style.display='none'">Cancel</button>
+    </div>
+  </div>
+
+  <div id="loading"><span class="spinner"></span>Analyzing logs…</div>
+
+  <!-- Risk bar -->
+  <div id="risk-bar-wrap">
+    <div class="risk-header">
+      <span class="risk-label">OVERALL RISK SCORE</span>
+      <span class="risk-score-display" id="risk-score-txt">0</span>
+    </div>
+    <div class="risk-track"><div class="risk-fill" id="risk-fill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <!-- Charts -->
+  <div class="charts-row" id="charts-row" style="display:none">
+    <div class="chart-card">
+      <h3>TOP SOURCE IPs</h3>
+      <div id="ip-chart"></div>
+    </div>
+    <div class="chart-card">
+      <h3>REQUEST TIMELINE</h3>
+      <canvas id="timeline-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Threats section -->
+  <div id="threats-section">
+    <div class="section-title">Detected Threats</div>
+    <div class="filter-row" id="filter-row"></div>
+    <div class="threat-table-wrap">
+      <table>
+        <thead><tr>
+          <th>LEVEL</th>
+          <th>RULE</th>
+          <th>DESCRIPTION</th>
+          <th>IP</th>
+          <th>USER</th>
+          <th>COUNT</th>
+          <th>TIME</th>
+        </tr></thead>
+        <tbody id="threat-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Log feed -->
+  <div class="section-title" id="feed-title" style="display:none">Live Log Feed <span style="color:var(--text-dim);font-size:0.65rem">(sampled)</span></div>
+  <div id="log-feed"></div>
+
+  <div id="empty-state">No analysis yet. Upload a log file or run the demo.</div>
+
+</main>
+
+<script>
+// ── Inline Python-equivalent analysis engine (JS port) ──────────────────────
+
+const SQLI = /union[\s+]+select|select\s+.+from|insert\s+into|drop\s+table|--\s*$|;\s*--|'\s*or\s+'1'='1|1=1|exec\s*\(|xp_cmdshell/i;
+const XSS  = /<script[^>]*>|javascript:|onerror=|onload=|eval\(|alert\(|document\.cookie/i;
+const TRAV = /\.\.[\\/]|%2e%2e[\\/]|%252e/i;
+const SCAN_UA = /nikto|sqlmap|nmap|masscan|zgrab|nuclei|dirbuster|gobuster/i;
+const SENS = /\/etc\/passwd|\/etc\/shadow|\.env|\.git\/config|wp-config\.php|\/admin|\/phpmyadmin|\/actuator|\.bak|\.sql/i;
+const IP_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
+
+const APACHE_RE = /^(\S+) \S+ (\S+) \[([^\]]+)\] "(\S+) (\S+) \S+" (\d{3})/;
+const SSH_RE    = /(\w{3}\s+\d+\s+\d+:\d+:\d+).*?(Failed|Accepted|Invalid)\s+(?:password|publickey)?\s*for\s+(\S+)\s+from\s+(\S+)/i;
+const GEN_RE    = /(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})\s+(.*)/;
+
+function parseLine(line) {
+  let m;
+  m = APACHE_RE.exec(line);
+  if (m) return { ip:m[1], user:m[2], ts:m[3], method:m[4], path:m[5], status:+m[6], raw:line };
+  m = SSH_RE.exec(line);
+  if (m) return { ip:m[4], user:m[3], status: m[2]==='Accepted'?200:401, raw:line };
+  const ipM = IP_RE.exec(line);
+  return { ip: ipM?.[0]||null, raw:line, status:null };
+}
+
+function analyze(text) {
+  const lines = text.split('\n').filter(l=>l.trim());
+  const entries = lines.map(parseLine);
+
+  // Counters
+  const ipReq = {}, ip404 = {}, ipFail = {};
+  const threatMap = {};
+
+  const emit = (id, name, level, desc, e, count=1) => {
+    const key = `${id}:${e.ip}:${e.user||''}`;
+    if (threatMap[key]) { threatMap[key].count += count; return; }
+    threatMap[key] = { rule_id:id, rule_name:name, level, description:desc, ip:e.ip, user:e.user||null,
+                       timestamp:new Date().toISOString(), count, evidence:[e.raw?.slice(0,160)||''] };
+  };
+
+  const LEVELS = { CRITICAL:4, HIGH:3, MEDIUM:2, LOW:1, INFO:0 };
+
+  for (const e of entries) {
+    const tgt = (e.path||'') + ' ' + e.raw;
+    if (e.ip) {
+      ipReq[e.ip] = (ipReq[e.ip]||0)+1;
+      if (e.status===404) ip404[e.ip] = (ip404[e.ip]||0)+1;
+      const m = e.raw.toLowerCase();
+      if (m.includes('failed') || m.includes('invalid user') || m.includes('authentication failure'))
+        ipFail[e.ip] = (ipFail[e.ip]||0)+1;
+    }
+    if (SQLI.test(tgt)) emit('R001','SQL Injection Attempt','HIGH',`SQLi attempt from ${e.ip}`,e);
+    if (XSS.test(tgt))  emit('R002','XSS Attempt','MEDIUM',`XSS payload from ${e.ip}`,e);
+    if (TRAV.test(tgt)) emit('R003','Path Traversal','HIGH',`Directory traversal from ${e.ip}`,e);
+    if (SENS.test(tgt)) emit('R004','Sensitive Path Access','MEDIUM',`Sensitive resource accessed by ${e.ip}`,e);
+    if (SCAN_UA.test(e.raw)) emit('R005','Security Scanner Detected','HIGH',`Scanner UA from ${e.ip}`,e);
+    if ((e.status===401||e.status===403) || /failed|invalid user/i.test(e.raw))
+      emit('R006','Authentication Failure','LOW',`Login failure from ${e.ip}`,e);
+    if (e.status>=500) emit('R007','Server Error','LOW',`HTTP ${e.status} from ${e.ip}`,e);
+  }
+
+  // Aggregate
+  for (const [ip, cnt] of Object.entries(ipFail))
+    if (cnt>=5) emit('R008','Brute Force Attack','CRITICAL',`Brute force: ${cnt} failures from ${ip}`,{ip,raw:`${cnt} failed logins`},cnt);
+  for (const [ip, cnt] of Object.entries(ip404))
+    if (cnt>=15) emit('R009','Directory Scanning','HIGH',`Dir scan: ${cnt} 404s from ${ip}`,{ip,raw:`${cnt} 404 responses`},cnt);
+  for (const [ip, cnt] of Object.entries(ipReq))
+    if (cnt>=150) emit('R010','Possible DoS Attack','CRITICAL',`High rate: ${cnt} reqs from ${ip}`,{ip,raw:`${cnt} requests`},cnt);
+
+  const threats = Object.values(threatMap).sort((a,b)=>LEVELS[b.level]-LEVELS[a.level]);
+  const ipCounter = Object.entries(ipReq).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const statusMap = {};
+  for (const e of entries) if (e.status) statusMap[e.status] = (statusMap[e.status]||0)+1;
+
+  let riskScore = 0;
+  for (const t of threats) riskScore += LEVELS[t.level] * t.count;
+  riskScore = Math.min(100, riskScore);
+
+  const byLevel = {};
+  for (const t of threats) byLevel[t.level] = (byLevel[t.level]||0)+1;
+
+  return { threats, topIps:ipCounter, statusMap, byLevel, riskScore,
+           totalEntries:lines.length, parsedEntries:entries.length,
+           uniqueIps: Object.keys(ipReq).length, entries };
+}
+
+// ── Demo log generator ───────────────────────────────────────────────────────
+function generateDemo() {
+  const ips = ['192.168.1.45','10.0.0.7','203.0.113.88','198.51.100.42','91.108.4.1','185.220.101.5','45.33.32.156','198.199.80.1','172.16.0.9'];
+  const paths = ['/','  /login','/api/users','/dashboard','/static/app.js','/api/products'];
+  const atk = [
+    "/?id=1' UNION SELECT username,password FROM users--",
+    '/../../etc/passwd',
+    '/search?q=<script>alert(document.cookie)</s\' + \'cript>',
+    '/wp-config.php','/.env','/.git/config','/phpmyadmin/','/backup.sql'
+  ];
+  const lines = [];
+  const now = new Date(); now.setHours(8,0,0,0);
+  const fmt = d => d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace(/ /g,'/')+':'+d.toTimeString().slice(0,8)+' +0000';
+  const apL = (ip,d,m,p,s) => `${ip} - - [${fmt(d)}] "${m} ${p} HTTP/1.1" ${s} 512`;
+  const sshF = (ip,u,d,ok) => { const t=new Date(d); const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][t.getMonth()]; return `${mo} ${t.getDate().toString().padStart(2,' ')} ${t.toTimeString().slice(0,8)} server sshd: ${ok?'Accepted':'Failed'} password for ${ok?'':'invalid user '}${u} from ${ip} port 22 ssh2`; };
+  // Normal traffic
+  for (let i=0;i<80;i++) { const d=new Date(now.getTime()+i*40000); lines.push(apL(ips[i%5],d,'GET',paths[i%paths.length],[200,200,301,304,404][i%5])); }
+  // Brute force
+  const bfBase=new Date(now.getTime()+3600000);
+  for (let i=0;i<12;i++) lines.push(sshF('91.108.4.1','admin',new Date(bfBase.getTime()+i*15000),false));
+  lines.push(sshF('91.108.4.1','admin',new Date(bfBase.getTime()+200000),true));
+  // SQLi
+  ['/?id=1\' UNION SELECT username,password FROM users--','/api/users?filter=1 OR 1=1'].forEach(p => { const d=new Date(now.getTime()+1800000); lines.push(apL('185.220.101.5',d,'GET',p,200)); lines.push(apL('185.220.101.5',d,'POST',p,500)); });
+  // Path traversal
+  lines.push(apL('45.33.32.156',new Date(now.getTime()+2100000),'GET','/../../etc/passwd',403));
+  // XSS
+  lines.push(apL('198.199.80.1',new Date(now.getTime()+2400000),'GET','/search?q=<script>alert(document.cookie)</s\' + \'cript>',200));
+  // Sensitive paths
+  ['/.env','/wp-config.php','/.git/config','/backup.sql','/phpmyadmin/'].forEach(p => lines.push(apL('185.220.101.5',new Date(now.getTime()+2700000),'GET',p,[200,403,404][Math.floor(Math.random()*3)])));
+  // Scanner UA
+  lines.push(`185.220.101.5 - - [${fmt(new Date(now.getTime()+4000000))}] "GET /vulnerabilities HTTP/1.1" 200 1234 "-" "sqlmap/1.7 (https://sqlmap.org)"`);
+  // Dir scan
+  for (let i=0;i<25;i++) lines.push(apL('198.199.80.1',new Date(now.getTime()+3600000+i*8000),'GET',`/probe-${1000+i}`,404));
+  // DoS
+  for (let i=0;i<220;i++) lines.push(apL('172.16.0.9',new Date(now.getTime()+5000000+i*1000),'GET','/api/heavy',200));
+  // Shuffle
+  for (let i=lines.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [lines[i],lines[j]]=[lines[j],lines[i]]; }
+  return lines.join('\n');
+}
+
+// ── UI rendering ─────────────────────────────────────────────────────────────
+let currentReport = null;
+let activeFilter = 'ALL';
+
+function ev(e, cls) { e.preventDefault(); document.getElementById('upload-zone').className = cls ? 'drag' : ''; }
+function drop(e) { e.preventDefault(); document.getElementById('upload-zone').className=''; processFile(e.dataTransfer.files[0]); }
+function fileChosen(inp) { if (inp.files[0]) processFile(inp.files[0]); }
+function pasteMode() { document.getElementById('paste-area').style.display='block'; document.getElementById('paste-input').focus(); }
+function analyzePaste() { const t=document.getElementById('paste-input').value.trim(); if(t) runAnalysis(t,'paste'); }
+function runDemo() { runAnalysis(generateDemo(),'demo'); }
+function downloadDemoLogs() {
+  const logText = generateDemo();
+  const blob = new Blob([logText], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'shield_demo_logs.log';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function processFile(file) {
+  const r = new FileReader();
+  r.onload = e => runAnalysis(e.target.result, file.name);
+  r.readAsText(file);
+}
+
+function runAnalysis(text, source) {
+  document.getElementById('loading').style.display='block';
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('threats-section').style.display='none';
+  document.getElementById('risk-bar-wrap').style.display='none';
+  document.getElementById('charts-row').style.display='none';
+  document.getElementById('log-feed').style.display='none';
+  document.getElementById('feed-title').style.display='none';
+
+  setTimeout(() => {
+    currentReport = analyze(text);
+    document.getElementById('loading').style.display='none';
+    renderReport(currentReport, source, text);
+  }, 50);
+}
+
+const LEVEL_ORDER = ['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
+
+function renderReport(r, source, rawText) {
+  // Header meta
+  document.getElementById('meta-info').innerHTML =
+    `${source} &bull; ${r.totalEntries} lines<br>${new Date().toLocaleTimeString()}`;
+
+  // Risk
+  const rw = document.getElementById('risk-bar-wrap');
+  rw.style.display='block';
+  const score = r.riskScore;
+  const scoreColor = score>=75 ? '#ff4d4d' : score>=50 ? '#ff8c42' : score>=25 ? '#ffd166' : '#06d6a0';
+  document.getElementById('risk-score-txt').textContent = score + '/100';
+  document.getElementById('risk-score-txt').style.color = scoreColor;
+  const fill = document.getElementById('risk-fill');
+  fill.style.width='0%'; fill.style.background=scoreColor;
+  requestAnimationFrame(()=>setTimeout(()=>fill.style.width=score+'%',50));
+
+  // Stats
+  const levelCounts = r.byLevel || {};
+  const statusMap = r.statusMap || {};
+  const sg = document.getElementById('stat-grid');
+  const statColor = v => v>=75?'var(--red)':v>=50?'var(--orange)':v>=25?'var(--yellow)':'var(--green)';
+  sg.innerHTML = [
+    ['TOTAL ENTRIES', r.totalEntries, 'var(--accent)'],
+    ['UNIQUE IPs', r.uniqueIps, 'var(--purple)'],
+    ['THREATS', r.threats.length, r.threats.length>5?'var(--red)':'var(--yellow)'],
+    ['CRITICAL', levelCounts.CRITICAL||0, 'var(--red)'],
+    ['HIGH', levelCounts.HIGH||0, 'var(--orange)'],
+    ['MEDIUM', levelCounts.MEDIUM||0, 'var(--yellow)'],
+  ].map(([l,v,c])=>`<div class="stat-card"><div class="label">${l}</div><div class="value" style="color:${c}">${v}</div></div>`).join('');
+
+  // IP chart
+  document.getElementById('charts-row').style.display='grid';
+  const maxReq = r.topIps[0]?.[1]||1;
+  document.getElementById('ip-chart').innerHTML = r.topIps.slice(0,8).map(([ip,cnt])=>`
+    <div class="ip-row">
+      <span class="ip-addr">${ip}</span>
+      <div class="ip-bar"><div class="ip-fill" data-w="${Math.round(cnt/maxReq*100)}%" style="width:0%"></div></div>
+      <span class="ip-count">${cnt}</span>
+    </div>`).join('');
+  setTimeout(()=>document.querySelectorAll('.ip-fill').forEach(el=>el.style.width=el.dataset.w),80);
+
+  // Timeline canvas
+  renderTimeline(r.entries);
+
+  // Filters
+  const fr = document.getElementById('filter-row');
+  const counts = {ALL: r.threats.length};
+  for (const l of LEVEL_ORDER) counts[l] = (levelCounts[l]||0);
+  activeFilter='ALL';
+  fr.innerHTML = ['ALL',...LEVEL_ORDER].map(l=>`<button class="filter-btn ${l==='ALL'?'active':''}" onclick="setFilter('${l}')">${l} ${counts[l]||0}</button>`).join('');
+
+  // Threats table
+  document.getElementById('threats-section').style.display='block';
+  renderThreats(r.threats);
+
+  // Log feed
+  document.getElementById('feed-title').style.display='flex';
+  const feed = document.getElementById('log-feed');
+  feed.style.display='block';
+  const sample = rawText.split('\n').slice(0,80);
+  feed.innerHTML = sample.map(line => {
+    let cls = 'ok';
+    if (SQLI.test(line)||TRAV.test(line)) cls='HIGH';
+    else if (XSS.test(line)||SENS.test(line)) cls='MEDIUM';
+    else if (/failed|invalid user/i.test(line)) cls='LOW';
+    return `<div class="log-line ${cls}">${escHTML(line)}</div>`;
+  }).join('');
+}
+
+function renderTimeline(entries) {
+  const buckets = {};
+  for (const e of entries) {
+    const raw = e.raw || '';
+    const m = raw.match(/\d{2}:\d{2}/);
+    if (m) { buckets[m[0]] = (buckets[m[0]]||0)+1; }
+  }
+  const keys = Object.keys(buckets).sort();
+  const vals = keys.map(k=>buckets[k]);
+  const max  = Math.max(...vals,1);
+
+  const canvas = document.getElementById('timeline-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * devicePixelRatio || 400;
+  canvas.height = 80 * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = canvas.offsetWidth, H = 80;
+  ctx.clearRect(0,0,W,H);
+
+  if (!keys.length) return;
+  const bw = W / keys.length;
+  ctx.fillStyle = 'rgba(0,212,255,0.15)';
+  keys.forEach((k,i) => {
+    const h = (vals[i]/max)*(H-16);
+    ctx.fillRect(i*bw+1, H-h, bw-2, h);
+  });
+  ctx.strokeStyle = 'rgba(0,212,255,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  keys.forEach((k,i) => {
+    const h = (vals[i]/max)*(H-16);
+    const x=i*bw+bw/2, y=H-h;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function setFilter(level) {
+  activeFilter = level;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active', b.textContent.startsWith(level)));
+  renderThreats(currentReport.threats);
+}
+
+function renderThreats(threats) {
+  const filtered = activeFilter==='ALL' ? threats : threats.filter(t=>t.level===activeFilter);
+  const tbody = document.getElementById('threat-tbody');
+  if (!filtered.length) { tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:2rem;font-family:var(--font-mono)">No threats at this level</td></tr>`; return; }
+  tbody.innerHTML = filtered.map(t=>`
+    <tr>
+      <td><span class="badge badge-${t.level}">${t.level}</span></td>
+      <td style="color:var(--text)">${escHTML(t.rule_name)}</td>
+      <td title="${escHTML(t.description)}" style="color:var(--text-dim)">${escHTML(t.description.slice(0,60))}${t.description.length>60?'…':''}</td>
+      <td style="color:var(--accent)">${t.ip||'—'}</td>
+      <td style="color:var(--text-dim)">${t.user||'—'}</td>
+      <td style="color:var(--yellow)">${t.count}</td>
+      <td style="color:var(--text-dim)">${new Date(t.timestamp).toLocaleTimeString()}</td>
+    </tr>`).join('');
+}
+
+function escHTML(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+{
+  "generated_at": "2026-05-20T17:52:39.144382",
+  "total_entries": 350,
+  "parsed_entries": 350,
+  "threats": [
+    {
+      "rule_id": "R008",
+      "rule_name": "Brute Force Attack",
+      "level": "CRITICAL",
+      "description": "Brute force: 12 failed logins from 91.108.4.1 in 5min",
+      "ip": "91.108.4.1",
+      "user": "admin",
+      "timestamp": "2026-05-20T17:52:39.043134",
+      "evidence": [
+        "12 failures in 5 minutes"
+      ],
+      "count": 12
+    },
+    {
+      "rule_id": "R010",
+      "rule_name": "Possible DoS Attack",
+      "level": "CRITICAL",
+      "description": "High request rate: 221 reqs from 172.16.0.9 in 5min",
+      "ip": "172.16.0.9",
+      "user": null,
+      "timestamp": "2026-05-20T09:24:36+00:00",
+      "evidence": [
+        "221 requests in 5 minutes"
+      ],
+      "count": 221
+    },
+    {
+      "rule_id": "R003",
+      "rule_name": "Path Traversal Attempt",
+      "level": "HIGH",
+      "description": "Directory traversal detected from 45.33.32.156",
+      "ip": "45.33.32.156",
+      "user": "-",
+      "timestamp": "2026-05-20T09:33:40+00:00",
+      "evidence": [
+        "45.33.32.156 - - [20/May/2026:09:33:40 +0000] \"GET /../../etc/passwd HTTP/1.1\" 403 512"
+      ],
+      "count": 1
+    },
+    {
+      "rule_id": "R005",
+      "rule_name": "Security Scanner Detected",
+      "level": "HIGH",
+      "description": "Known vulnerability scanner UA from 185.220.101.5",
+      "ip": "185.220.101.5",
+      "user": "-",
+      "timestamp": "2026-05-20T09:58:34+00:00",
+      "evidence": [
+        "185.220.101.5 - - [20/May/2026:09:58:34 +0000] \"GET /vulnerabilities HTTP/1.1\" 200 1234 \"-\" \"sqlmap/1.7 (https://sqlmap.org)\""
+      ],
+      "count": 1
+    },
+    {
+      "rule_id": "R001",
+      "rule_name": "SQL Injection Attempt",
+      "level": "HIGH",
+      "description": "Possible SQLi in request from 185.220.101.5",
+      "ip": "185.220.101.5",
+      "user": null,
+      "timestamp": "2026-05-20T17:52:39.057229",
+      "evidence": [
+        "Matched in: 185.220.101.5 - - [20/May/2026:09:05:37 +0000] \"POST /?id=1' UNION SELECT username,password FROM users-- HTTP/1.1\" 500 512 185.220.101.5 - - [20/May/2026:09:05:37 +0000] \"POST /?id=1' UNION SELECT use"
+      ],
+      "count": 4
+    },
+    {
+      "rule_id": "R009",
+      "rule_name": "Directory Scanning",
+      "level": "HIGH",
+      "description": "Directory scan: 25 404s from 198.199.80.1 in 5min",
+      "ip": "198.199.80.1",
+      "user": null,
+      "timestamp": "2026-05-20T09:00:00+00:00",
+      "evidence": [
+        "25 404 responses in 5 minutes"
+      ],
+      "count": 25
+    },
+    {
+      "rule_id": "R004",
+      "rule_name": "Sensitive Path Access",
+      "level": "MEDIUM",
+      "description": "Access to sensitive resource by 45.33.32.156",
+      "ip": "45.33.32.156",
+      "user": "-",
+      "timestamp": "2026-05-20T09:33:40+00:00",
+      "evidence": [
+        "Path: /../../etc/passwd"
+      ],
+      "count": 2
+    },
+    {
+      "rule_id": "R004",
+      "rule_name": "Sensitive Path Access",
+      "level": "MEDIUM",
+      "description": "Access to sensitive resource by 198.51.100.42",
+      "ip": "198.51.100.42",
+      "user": "-",
+      "timestamp": "2026-05-20T08:51:15+00:00",
+      "evidence": [
+        "Path: /admin"
+      ],
+      "count": 5
+    },
+    {
+      "rule_id": "R004",
+      "rule_name": "Sensitive Path Access",
+      "level": "MEDIUM",
+      "description": "Access to sensitive resource by 203.0.113.88",
+      "ip": "203.0.113.88",
+      "user": "-",
+      "timestamp": "2026-05-20T09:25:52+00:00",
+      "evidence": [
+        "Path: /admin"
+      ],
+      "count": 2
+    },
+    {
+      "rule_id": "R004",
+      "rule_name": "Sensitive Path Access",
+      "level": "MEDIUM",
+      "description": "Access to sensitive resource by 185.220.101.5",
+      "ip": "185.220.101.5",
+      "user": "-",
+      "timestamp": "2026-05-20T09:13:39+00:00",
+      "evidence": [
+        "Path: /wp-config.php"
+      ],
+      "count": 4
+    },
+    {
+      "rule_id": "R004",
+      "rule_name": "Sensitive Path Access",
+      "level": "MEDIUM",
+      "description": "Access to sensitive resource by 172.16.0.9",
+      "ip": "172.16.0.9",
+      "user": "-",
+      "timestamp": "2026-05-20T09:05:56+00:00",
+      "evidence": [
+        "Path: /admin"
+      ],
+      "count": 1
+    },
+    {
+      "rule_id": "R002",
+      "rule_name": "XSS Attempt",
+      "level": "MEDIUM",
+      "description": "Possible XSS payload from 198.199.80.1",
+      "ip": "198.199.80.1",
+      "user": "-",
+      "timestamp": "2026-05-20T09:36:37+00:00",
+      "evidence": [
+        "198.199.80.1 - - [20/May/2026:09:36:37 +0000] \"GET /search?q=<script>alert(document.cookie)</script> HTTP/1.1\" 200 512"
+      ],
+      "count": 1
+    },
+    {
+      "rule_id": "R006",
+      "rule_name": "Authentication Failure",
+      "level": "LOW",
+      "description": "Login failure for user 'admin' from 91.108.4.1",
+      "ip": "91.108.4.1",
+      "user": "admin",
+      "timestamp": "2026-05-20T17:52:39.043134",
+      "evidence": [
+        "May 20 09:01:21 server sshd: Failed password for invalid user admin from 91.108.4.1 port 22 ssh2"
+      ],
+      "count": 12
+    }
+  ],
+  "summary": {
+    "by_level": {
+      "LOW": 1,
+      "HIGH": 4,
+      "MEDIUM": 6,
+      "CRITICAL": 2
+    },
+    "status_codes": {
+      "200": 296,
+      "404": 29,
+      "403": 3,
+      "304": 2,
+      "301": 3
+    },
+    "unique_ips": 9,
+    "unique_paths": 44
+  },
+  "top_ips": [
+    [
+      "172.16.0.9",
+      240
+    ],
+    [
+      "198.199.80.1",
+      26
+    ],
+    [
+      "198.51.100.42",
+      19
+    ],
+    [
+      "10.0.0.7",
+      17
+    ],
+    [
+      "91.108.4.1",
+      13
+    ],
+    [
+      "203.0.113.88",
+      13
+    ],
+    [
+      "192.168.1.45",
+      11
+    ],
+    [
+      "185.220.101.5",
+      9
+    ],
+    [
+      "45.33.32.156",
+      2
+    ]
+  ],
+  "top_paths": [
+    [
+      "/api/heavy",
+      220
+    ],
+    [
+      "/checkout",
+      11
+    ],
+    [
+      "/profile",
+      10
+    ],
+    [
+      "/",
+      10
+    ],
+    [
+      "/login",
+      9
+    ],
+    [
+      "/api/users",
+      9
+    ],
+    [
+      "/admin",
+      8
+    ],
+    [
+      "/api/products",
+      7
+    ],
+    [
+      "/api/v2/data",
+      6
+    ],
+    [
+      "/dashboard",
+      5
+    ]
+  ],
+  "timeline": {
+    "08:03": 1,
+    "08:11": 1,
+    "08:15": 1,
+    "08:17": 2,
+    "08:18": 2,
+    "08:23": 1,
+    "08:24": 1,
+    "08:25": 1,
+    "08:31": 1,
+    "08:32": 3,
+    "08:33": 1,
+    "08:36": 1,
+    "08:37": 3,
+    "08:41": 1,
+    "08:44": 3,
+    "08:45": 2,
+    "08:48": 1,
+    "08:49": 1,
+    "08:50": 2,
+    "08:51": 5,
+    "08:54": 1,
+    "08:55": 4,
+    "08:56": 2,
+    "08:57": 4,
+    "08:59": 1,
+    "09:00": 10,
+    "09:01": 12,
+    "09:02": 8,
+    "09:03": 5,
+    "09:04": 1,
+    "09:05": 3,
+    "09:08": 2,
+    "09:09": 2,
+    "09:11": 1,
+    "09:13": 2,
+    "09:15": 1,
+    "09:17": 1,
+    "09:18": 1,
+    "09:21": 3,
+    "09:23": 40,
+    "09:24": 60,
+    "09:25": 61,
+    "09:26": 62,
+    "09:28": 2,
+    "09:33": 2,
+    "09:34": 1,
+    "09:36": 2,
+    "09:37": 1,
+    "09:38": 1,
+    "09:44": 1,
+    "09:45": 1,
+    "09:58": 1,
+    "17:52": 17
+  },
+  "risk_score": 100
+}
