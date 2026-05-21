@@ -18,6 +18,19 @@ log_ids/
 
 ---
 
+## System Architecture & Data Flow
+
+### Overall System Design
+The application consists of a Terminal User Interface (TUI), an embedded Web Server, a JavaScript Web Dashboard, and a Python Detection Engine (`core/analyzer.py`):
+
+![Overall System Design](images/architecture_system.png)
+
+### Real-Time Live Log Polling Loop
+When live log streaming is active, the dashboard polls the embedded web server incrementally utilizing the byte-offset cursor:
+
+![Real-Time Live Log Polling Loop](images/architecture_polling.png)
+
+---
 ## Quick Start
 
 ### Interactive Menu (Recommended)
@@ -126,12 +139,33 @@ Then call `self._check_my_rule(e)` inside `feed()`.
 
 ## Work Proof (Screenshots)
 
-### Interactive TUI Menu
-![Interactive TUI Menu](images/terminal_menu.png)
+### Terminal User Interface (TUI)
 
-### Terminal Log Analysis Output
-![Terminal Log Analysis Output](images/terminal_analysis.png)
+#### Interactive CLI Menu
+![Interactive CLI Menu](images/terminal_menu.png)
+
+#### Log Analysis Report Summary
+![Log Analysis Report Summary](images/terminal_analysis.png)
+
+#### Log Analysis Report Statistics
+![Log Analysis Report Statistics](images/terminal_analysis_stats.png)
+
+---
 
 ### Visual Web Dashboard
-![Visual Web Dashboard](images/dashboard_overview.png)
+
+#### Dashboard Landing & Initial State
+![Dashboard Landing & Initial State](images/dashboard_empty.png)
+
+#### Real-time Metrics & Volumetric Charts
+![Real-time Metrics & Volumetric Charts](images/dashboard_metrics.png)
+
+#### Threat Center & Forensic Inspector
+![Threat Center & Forensic Inspector](images/dashboard_threat_center.png)
+
+#### Interactive Log Explorer & Live Feed
+![Interactive Log Explorer & Live Feed](images/dashboard_log_feed.png)
+
+#### Scan Operations Control Tray
+![Scan Operations Control Tray](images/upload_actions.png)
 
