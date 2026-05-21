@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="../static/css/style.css" />
+  <script src="../static/js/lucide.min.js"></script>
 </head>
 <body data-theme="dark">
 
@@ -82,6 +82,10 @@
           <i data-lucide="edit-3"></i>
           <span>Paste Log Stream</span>
         </button>
+        <button class="btn btn--outline" onclick="liveMode()">
+          <i data-lucide="radio"></i>
+          <span>Live Log Stream</span>
+        </button>
         <button class="btn btn--ghost" onclick="downloadDemoLogs()">
           <i data-lucide="download"></i>
           <span>Download Sample Logs</span>
@@ -103,6 +107,38 @@
           <i data-lucide="search-code"></i>
           <span>Inspect Stream</span>
         </button>
+      </div>
+    </section>
+
+    <!-- ─── Live Stream Area ─── -->
+    <section id="live-area" class="paste-section" style="display:none">
+      <div class="section-header">
+        <span class="section-label" style="display: flex; align-items: center; gap: 8px;">
+          <span class="tl-live-dot" id="live-pulsar" style="display:none; position: static; width: 8px; height: 8px;"></span>
+          LIVE LOG STREAM READER
+        </span>
+        <button class="icon-btn" onclick="closeLiveArea()" title="Close">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="live-input-row" style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
+        <div style="flex: 1; min-width: 280px; position: relative;">
+          <input type="text" id="live-file-path" class="paste-textarea" style="height: 42px; min-height: 42px; padding: 0 16px; line-height: 42px; font-family: var(--font-mono); font-size: 0.82rem;" placeholder="Enter log file path (e.g. demo_logs.log)..." value="demo_logs.log" />
+        </div>
+        <div style="display: flex; gap: var(--space-2); align-items: center;">
+          <select id="live-read-mode" class="btn btn--ghost" style="height: 42px; padding: 0 16px; font-family: var(--font-ui); font-size: 0.82rem; cursor: pointer; border-radius: var(--radius-md); border: 1px solid var(--border-default);">
+            <option value="beginning" style="background: var(--bg-card); color: var(--text-primary);">Read From Beginning</option>
+            <option value="tail" style="background: var(--bg-card); color: var(--text-primary);" selected>Tail New Lines Only</option>
+          </select>
+          <button class="btn btn--primary" id="btn-toggle-live" onclick="toggleLiveStream()" style="height: 42px;">
+            <i data-lucide="play" id="btn-live-icon"></i>
+            <span id="btn-live-text">Start Live Stream</span>
+          </button>
+        </div>
+      </div>
+      <div id="live-status-bar" style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-secondary); font-family: var(--font-mono); border-top: 1px solid var(--border-subtle); padding-top: var(--space-3);">
+        <span id="live-stats">Status: Offline</span>
+        <span id="live-file-info">—</span>
       </div>
     </section>
 
@@ -343,6 +379,6 @@
 
   </main>
 
-  <script src="app.js"></script>
+  <script src="../static/js/app.js"></script>
 </body>
 </html>

@@ -135,11 +135,156 @@ PARSERS = [
 
 IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
+ACTIVE_SCHEMA = None
+
+class LogSchemaAutodetector:
+    """Analyzes sample log lines to automatically detect schema patterns (delimiters, columns, values)."""
+    @staticmethod
+    def detect_schema(samples: list[str]) -> Optional[dict]:
+        if not samples:
+            return None
+        lines = [line.strip() for line in samples if line.strip() and not line.strip().startswith("#")]
+        if not lines:
+            return None
+        
+        # JSON check
+        json_count = sum(1 for line in lines if line.startswith("{") and line.endswith("}"))
+        if json_count > len(lines) * 0.7:
+            return {"type": "json"}
+            
+        # Detect delimiters
+        delimiters = ['|', ',', '\t', ';']
+        delim_counts = {d: [] for d in delimiters}
+        for line in lines:
+            for d in delimiters:
+                delim_counts[d].append(line.count(d))
+                
+        best_delim = None
+        for d, counts in delim_counts.items():
+            if all(c > 0 for c in counts) and len(set(counts)) == 1:
+                best_delim = d
+                break
+            elif all(c > 0 for c in counts):
+                best_delim = d
+        if not best_delim:
+            best_delim = ' '
+            
+        split_lines = []
+        for line in lines:
+            if best_delim == ' ':
+                split_lines.append(line.split())
+            else:
+                split_lines.append([t.strip() for t in line.split(best_delim)])
+                
+        num_cols = min(len(parts) for parts in split_lines)
+        if num_cols == 0:
+            return None
+            
+        ip_col = None
+        ts_col = None
+        method_col = None
+        path_col = None
+        status_col = None
+        msg_col = None
+        
+        ip_pattern = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+        status_pattern = re.compile(r'^\b[1-5]\d{2}\b$')
+        method_pattern = re.compile(r'^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)$', re.IGNORECASE)
+        path_pattern = re.compile(r'^/[a-zA-Z0-9_\-\.\/]*$')
+        
+        for col_idx in range(num_cols):
+            tokens = [line_parts[col_idx] for line_parts in split_lines if col_idx < len(line_parts)]
+            if ip_col is None and any(ip_pattern.search(tok) for tok in tokens):
+                ip_col = col_idx
+                continue
+            if method_col is None and any(method_pattern.search(tok) for tok in tokens):
+                method_col = col_idx
+                continue
+            if status_col is None and all(status_pattern.match(tok) for tok in tokens if tok.isdigit()):
+                status_col = col_idx
+                continue
+            if path_col is None and any(path_pattern.match(tok) for tok in tokens):
+                path_col = col_idx
+                continue
+            if ts_col is None:
+                is_ts = False
+                for tok in tokens:
+                    if ('-' in tok or '/' in tok or ':' in tok) and any(c.isdigit() for c in tok):
+                        is_ts = True
+                        break
+                if is_ts:
+                    ts_col = col_idx
+                    continue
+                    
+        mapped_cols = {ip_col, ts_col, method_col, path_col, status_col}
+        for col_idx in range(num_cols - 1, -1, -1):
+            if col_idx not in mapped_cols:
+                msg_col = col_idx
+                break
+                
+        return {
+            "type": "delimited",
+            "delimiter": best_delim,
+            "ip_col": ip_col,
+            "ts_col": ts_col,
+            "method_col": method_col,
+            "path_col": path_col,
+            "status_col": status_col,
+            "msg_col": msg_col
+        }
+
 
 def parse_line(line: str, source: str = "unknown") -> Optional[LogEntry]:
     line = line.strip()
     if not line or line.startswith("#"):
         return None
+
+    global ACTIVE_SCHEMA
+    if ACTIVE_SCHEMA and ACTIVE_SCHEMA.get("type") == "delimited":
+        try:
+            delim = ACTIVE_SCHEMA["delimiter"]
+            parts = line.split() if delim == ' ' else [p.strip() for p in line.split(delim)]
+            
+            ip = None
+            if ACTIVE_SCHEMA["ip_col"] is not None and ACTIVE_SCHEMA["ip_col"] < len(parts):
+                raw_ip = parts[ACTIVE_SCHEMA["ip_col"]]
+                ip_match = IP_RE.search(raw_ip)
+                ip = ip_match.group() if ip_match else raw_ip
+                
+            method = parts[ACTIVE_SCHEMA["method_col"]] if ACTIVE_SCHEMA["method_col"] is not None and ACTIVE_SCHEMA["method_col"] < len(parts) else None
+            path = parts[ACTIVE_SCHEMA["path_col"]] if ACTIVE_SCHEMA["path_col"] is not None and ACTIVE_SCHEMA["path_col"] < len(parts) else None
+            
+            status = None
+            if ACTIVE_SCHEMA["status_col"] is not None and ACTIVE_SCHEMA["status_col"] < len(parts):
+                st_val = parts[ACTIVE_SCHEMA["status_col"]]
+                if st_val.isdigit():
+                    status = int(st_val)
+                    
+            message = parts[ACTIVE_SCHEMA["msg_col"]] if ACTIVE_SCHEMA["msg_col"] is not None and ACTIVE_SCHEMA["msg_col"] < len(parts) else line[:200]
+            
+            ts = None
+            if ACTIVE_SCHEMA["ts_col"] is not None and ACTIVE_SCHEMA["ts_col"] < len(parts):
+                ts_str = parts[ACTIVE_SCHEMA["ts_col"]].strip("[]() ")
+                for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%d/%b/%Y:%H:%M:%S", "%b %d %H:%M:%S"]:
+                    try:
+                        ts = datetime.strptime(ts_str.split(" ")[0].split(":")[0] + ":" + ":".join(ts_str.split(" ")[0].split(":")[1:]) if ":" in ts_str else ts_str, fmt)
+                        break
+                    except Exception:
+                        pass
+                        
+            return LogEntry(
+                raw=line,
+                timestamp=ts or datetime.now(),
+                ip=ip,
+                user=None,
+                method=method,
+                path=path,
+                status=status,
+                message=message,
+                source=source
+            )
+        except Exception:
+            pass
 
     # Handle structured JSON logs
     if line.startswith("{") and line.endswith("}"):
@@ -290,6 +435,78 @@ class DetectionEngine:
         self._ip_404:  defaultdict[str, list[datetime]]  = defaultdict(list)
         self._ip_req:  defaultdict[str, list[datetime]]  = defaultdict(list)
         self.threats: list[ThreatEvent] = []
+        self._emitted_agg_keys = set()
+
+    def feed_realtime(self, entry: LogEntry) -> list[ThreatEvent]:
+        """Feeds a single entry, runs per-entry rules, runs IP-specific agg rules, and returns new threats found."""
+        start_len = len(self.threats)
+        self.feed(entry)
+        
+        # Check aggregates for the IP immediately
+        if entry.ip:
+            self._check_realtime_agg(entry.ip, entry.timestamp or datetime.now())
+            
+        return self.threats[start_len:]
+
+    def _check_realtime_agg(self, ip: str, ts: datetime):
+        # 1. Brute Force
+        if ip in self._ip_fail:
+            max_cnt, peak_window = self._get_max_window_count(self._ip_fail[ip])
+            if max_cnt >= self.BRUTE_THRESHOLD:
+                # Key on ip and a block multiplier to avoid double alerting too frequently
+                key = ("R008", ip, max_cnt // 5)
+                if key not in self._emitted_agg_keys:
+                    self._emitted_agg_keys.add(key)
+                    self.threats.append(ThreatEvent(
+                        rule_id="R008",
+                        rule_name="Brute Force Attack",
+                        level=ThreatLevel.CRITICAL,
+                        description=f"Brute force: {max_cnt} failed logins from {ip} in {self.WINDOW_MINUTES}min",
+                        ip=ip,
+                        user=None,
+                        timestamp=peak_window[-1],
+                        count=max_cnt,
+                        evidence=[f"{max_cnt} failures in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
+                    ))
+
+        # 2. Directory Scanning
+        if ip in self._ip_404:
+            max_cnt, peak_window = self._get_max_window_count(self._ip_404[ip])
+            if max_cnt >= self.SCAN_THRESHOLD:
+                key = ("R009", ip, max_cnt // 10)
+                if key not in self._emitted_agg_keys:
+                    self._emitted_agg_keys.add(key)
+                    self.threats.append(ThreatEvent(
+                        rule_id="R009",
+                        rule_name="Directory Scanning",
+                        level=ThreatLevel.HIGH,
+                        description=f"Directory scan: {max_cnt} 404s from {ip} in {self.WINDOW_MINUTES}min",
+                        ip=ip,
+                        user=None,
+                        timestamp=peak_window[-1],
+                        count=max_cnt,
+                        evidence=[f"{max_cnt} 404 responses in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
+                    ))
+
+        # 3. DoS Attack
+        if ip in self._ip_req:
+            max_cnt, peak_window = self._get_max_window_count(self._ip_req[ip])
+            if max_cnt >= self.DOS_THRESHOLD:
+                key = ("R010", ip, max_cnt // 50)
+                if key not in self._emitted_agg_keys:
+                    self._emitted_agg_keys.add(key)
+                    self.threats.append(ThreatEvent(
+                        rule_id="R010",
+                        rule_name="Possible DoS Attack",
+                        level=ThreatLevel.CRITICAL,
+                        description=f"High request rate: {max_cnt} reqs from {ip} in {self.WINDOW_MINUTES}min",
+                        ip=ip,
+                        user=None,
+                        timestamp=peak_window[-1],
+                        count=max_cnt,
+                        evidence=[f"{max_cnt} requests in {self.WINDOW_MINUTES} minutes starting at {peak_window[0].strftime('%H:%M:%S')}"],
+                    ))
+
 
     # ── per-entry rules ───────────────────────────────────────────────────────
 

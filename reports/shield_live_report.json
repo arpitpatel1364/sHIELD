@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-05-21T12:36:30.582207",
+  "total_entries": 0,
+  "parsed_entries": 0,
+  "threats": [],
+  "summary": {
+    "by_level": {},
+    "status_codes": {},
+    "unique_ips": 0,
+    "unique_paths": 0
+  },
+  "top_ips": [],
+  "top_paths": [],
+  "timeline": {},
+  "risk_score": 0
+}

@@ -2139,3 +2139,322 @@ body {
     border: 1px solid #ccc;
   }
 }
+
+/* ============================================================
+   PREMIUM HOVER & ANIMATION SYSTEM
+   ============================================================ */
+
+/* ── Keyframes ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes iconRingPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.7; }
+  50%       { transform: scale(1.22); opacity: 0.1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 12px var(--accent-glow); }
+  50%       { box-shadow: 0 0 28px var(--accent-glow), 0 0 60px rgba(16,185,129,0.08); }
+}
+
+/* ── Stat Cards — rich lift + color accent glow ── */
+.stat-card {
+  transition: transform 0.3s var(--ease-out),
+              border-color 0.3s var(--ease-out),
+              box-shadow 0.3s var(--ease-out);
+  will-change: transform;
+}
+.stat-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  border-color: var(--accent-c, var(--accent)) !important;
+  box-shadow:
+    0 16px 40px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 0 30px color-mix(in srgb, var(--accent-c, var(--accent)) 25%, transparent);
+}
+.stat-card:hover .stat-value {
+  text-shadow: 0 0 20px currentColor;
+}
+.stat-card:hover .stat-label {
+  color: var(--text-primary);
+}
+/* Shimmer sweep on stat card hover */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.04) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.stat-card:hover::before {
+  opacity: 1;
+  animation: shimmer 0.7s ease-out forwards;
+}
+
+/* ── General Card hover ── */
+.card {
+  transition: border-color 0.3s var(--ease-out),
+              box-shadow 0.3s var(--ease-out),
+              transform 0.3s var(--ease-out);
+}
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.03);
+  transform: translateY(-1px);
+}
+
+/* ── Bar rows — highlight on hover ── */
+.bar-row {
+  transition: background 0.2s ease;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  margin: 0 -6px;
+}
+.bar-row:hover {
+  background: rgba(255,255,255,0.025);
+}
+.bar-row:hover .bar-label {
+  color: var(--text-primary);
+}
+.bar-row:hover .bar-count {
+  color: var(--accent);
+}
+.bar-row:hover .bar-fill {
+  filter: brightness(1.25);
+  box-shadow: 0 0 12px currentColor;
+}
+
+/* ── Threat table rows — animated left accent on hover ── */
+.threat-row {
+  transition: background 0.18s ease;
+  position: relative;
+}
+.threat-row td {
+  transition: background 0.18s ease, color 0.18s ease;
+  position: relative;
+}
+.threat-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.25s var(--ease-out);
+}
+.threat-row:hover::after  { width: 2px; }
+.threat-row.active::after { width: 3px; }
+.threat-row:hover td:first-child { padding-left: 18px; }
+.threat-row:hover td { color: var(--text-primary); }
+
+/* ── Severity Badges — glow on hover ── */
+.badge {
+  transition: transform 0.2s var(--ease-out),
+              box-shadow 0.2s var(--ease-out),
+              filter 0.2s ease;
+  cursor: default;
+}
+.badge:hover { transform: scale(1.08); filter: brightness(1.15); }
+.badge-CRITICAL:hover { box-shadow: 0 0 16px var(--sev-critical); }
+.badge-HIGH:hover     { box-shadow: 0 0 16px var(--sev-high); }
+.badge-MEDIUM:hover   { box-shadow: 0 0 14px var(--sev-medium); }
+.badge-LOW:hover      { box-shadow: 0 0 14px var(--sev-low); }
+.badge-INFO:hover     { box-shadow: 0 0 14px var(--sev-info); }
+
+/* ── Filter buttons ── */
+.filter-btn {
+  transition: all 0.22s var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.filter-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background 0.2s ease;
+  border-radius: inherit;
+}
+.filter-btn:hover:not(.active)::after { background: rgba(255,255,255,0.04); }
+.filter-btn:hover:not(.active) {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+.filter-btn.active {
+  animation: glowPulse 2.5s ease-in-out infinite;
+}
+.filter-btn:active { transform: scale(0.96); }
+
+/* ── Timeline stat chips ── */
+.tl-chip {
+  transition: transform 0.2s var(--ease-out),
+              border-color 0.2s ease,
+              box-shadow 0.2s ease,
+              background 0.2s ease;
+  cursor: default;
+}
+.tl-chip:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.05);
+  border-color: var(--border-strong);
+}
+.tl-chip--total:hover  { border-color: var(--accent);   box-shadow: 0 4px 16px var(--accent-glow); }
+.tl-chip--peak:hover   { border-color: var(--accent-2); box-shadow: 0 4px 16px rgba(139,92,246,0.2); }
+
+/* ── Inspector card — entrance animation ── */
+.inspector-content {
+  animation: fadeInUp 0.35s var(--ease-out);
+}
+.inspector-head {
+  transition: border-color 0.3s ease;
+}
+
+/* ── Log lines ── */
+.log-line {
+  transition: background 0.15s ease,
+              padding-left 0.15s ease;
+}
+.log-line:hover {
+  padding-left: 28px;
+  border-left: 2px solid rgba(255,255,255,0.08);
+}
+.log-line.CRITICAL:hover { background: rgba(244,63,94,0.06);  border-left-color: var(--sev-critical); }
+.log-line.HIGH:hover     { background: rgba(251,146,60,0.05);  border-left-color: var(--sev-high); }
+.log-line.MEDIUM:hover   { background: rgba(251,191,36,0.04);  border-left-color: var(--sev-medium); }
+
+/* ── Upload zone icon ring ── */
+.upload-icon-ring {
+  animation: iconRingPulse 3s ease-in-out infinite;
+}
+.upload-zone:hover .upload-icon-ring {
+  border-color: var(--accent);
+  animation-duration: 1.4s;
+}
+.upload-zone:hover .upload-icon-svg {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 16px var(--accent));
+}
+.upload-icon-svg {
+  transition: transform 0.3s var(--ease-out), filter 0.3s ease;
+}
+
+/* ── Brand icon ── */
+.brand-icon {
+  transition: box-shadow 0.3s ease, transform 0.3s var(--ease-out);
+}
+.brand-icon:hover {
+  transform: scale(1.08) rotate(-4deg);
+  box-shadow: 0 0 30px var(--accent-glow);
+}
+
+/* ── Card entry animation (used when sections show) ── */
+.stat-card, .card, .tl-chip {
+  animation: fadeInScale 0.4s var(--ease-out) both;
+}
+
+/* stagger stat cards */
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.10s; }
+.stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stat-card:nth-child(4) { animation-delay: 0.20s; }
+.stat-card:nth-child(5) { animation-delay: 0.25s; }
+.stat-card:nth-child(6) { animation-delay: 0.30s; }
+
+/* ── Severity bar fill glow on hover ── */
+.severity-bar-container .bar-fill {
+  transition: width 1s var(--ease-out), box-shadow 0.3s ease;
+}
+.severity-bar-container .bar-row:hover .bar-fill {
+  box-shadow: 0 0 18px currentColor;
+  filter: brightness(1.3) saturate(1.2);
+}
+
+/* ── Inspector meta grid items ── */
+.meta-item {
+  transition: background 0.2s ease, transform 0.2s var(--ease-out);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  margin: -4px -6px;
+}
+.meta-item:hover {
+  background: rgba(255,255,255,0.04);
+  transform: translateX(2px);
+}
+.meta-item:hover .meta-val {
+  color: var(--accent);
+}
+
+/* ── Evidence lines ── */
+.evidence-line {
+  transition: background 0.15s ease, padding-left 0.15s ease;
+  border-radius: 4px;
+}
+.evidence-line:hover {
+  background: rgba(255,255,255,0.03);
+  padding-left: 8px;
+}
+
+/* ── Mitigation list items ── */
+.mitigation-list li {
+  transition: color 0.2s ease, transform 0.2s var(--ease-out);
+}
+.mitigation-list li:hover {
+  color: var(--text-primary);
+  transform: translateX(4px);
+}
+.mitigation-list li:hover::before {
+  color: var(--accent-2);
+}
+
+/* ── Buttons extra micro-interactions ── */
+.btn {
+  transition: all 0.2s var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background 0.2s ease;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.btn:active::after  { background: rgba(0,0,0,0.1); }
+.btn--sm:hover { transform: translateY(-1px); }
+
+/* ── Inspector severity card hover glows ── */
+.inspector-card--CRITICAL:hover { box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 60px var(--sev-critical-glow) !important; }
+.inspector-card--HIGH:hover     { box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 60px var(--sev-high-glow) !important; }
+.inspector-card--MEDIUM:hover   { box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 50px var(--sev-medium-glow) !important; }
+.inspector-card--LOW:hover      { box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 50px var(--sev-low-glow) !important; }
+
+/* ── Reduce motion support ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

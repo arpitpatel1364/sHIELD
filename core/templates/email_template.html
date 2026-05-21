@@ -1,0 +1,336 @@
+<!-- THREAT_ALERT_START -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHIELD — Threat Alert Triggered</title>
+    <style>
+        body {
+            background-color: #030712;
+            color: #f0fdf4;
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #060d1a;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+        .email-header {
+            background: linear-gradient(135deg, #10b981, #8b5cf6);
+            padding: 24px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .email-header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .email-content {
+            padding: 28px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 11px;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 0 10px {{color}};
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
+            background: rgba(8, 16, 28, 0.55);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .details-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        .details-table tr:last-child td {
+            border-bottom: none;
+        }
+        .details-table td.label {
+            font-weight: 600;
+            color: #f0fdf4;
+            width: 35%;
+        }
+        .evidence-box {
+            background: #020408;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            margin-top: 24px;
+        }
+        .evidence-title {
+            margin-top: 0;
+            color: #f0fdf4;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .email-footer {
+            background: #020408;
+            padding: 18px;
+            text-align: center;
+            font-size: 11px;
+            color: #475569;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>🛡️ SHIELD INTRUSION ALERT</h1>
+        </div>
+        <div class="email-content">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span class="badge" style="background-color: {{color}};">{{level}} THREAT</span>
+            </div>
+            <h2 style="color: #ffffff; text-align: center; margin-top: 0; font-size: 18px; font-weight: 700;">{{rule_name}}</h2>
+            <p style="color: #94a3b8; text-align: center; font-style: italic; font-size: 13px; margin-bottom: 24px;">{{description}}</p>
+            
+            <table class="details-table">
+                <tr>
+                    <td class="label">IP Address</td>
+                    <td style="font-family: monospace; font-weight: bold; color: {{color}};">{{ip}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Target User</td>
+                    <td>{{user}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Timestamp</td>
+                    <td>{{timestamp}}</td>
+                </tr>
+                <tr>
+                    <td class="label">Event Count</td>
+                    <td>{{count}}</td>
+                </tr>
+            </table>
+            
+            <div class="evidence-box">
+                <div class="evidence-title">Forensic Evidence</div>
+                <ul style="padding: 0; margin: 0; list-style: none;">
+                    {{evidence_html}}
+                </ul>
+            </div>
+        </div>
+        <div class="email-footer">
+            SHIELD Security Operations Center &bull; Live Telemetry Feed
+        </div>
+    </div>
+</body>
+</html>
+<!-- THREAT_ALERT_END -->
+
+<!-- SUMMARY_REPORT_START -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHIELD — Operations Summary Report</title>
+    <style>
+        body {
+            background-color: #030712;
+            color: #f0fdf4;
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .email-container {
+            max-width: 650px;
+            margin: 0 auto;
+            background-color: #060d1a;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+        .email-header {
+            background: linear-gradient(135deg, #10b981, #8b5cf6);
+            padding: 24px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .email-header h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .email-content {
+            padding: 28px;
+        }
+        .risk-score-card {
+            text-align: center;
+            padding: 24px;
+            background: #020408;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            margin-bottom: 24px;
+            position: relative;
+        }
+        .risk-val {
+            font-size: 42px;
+            font-weight: 800;
+            color: {{risk_color}};
+            margin: 8px 0;
+            text-shadow: 0 0 15px {{risk_color}};
+        }
+        .stats-grid {
+            width: 100%;
+            margin-bottom: 24px;
+            border-spacing: 8px 0;
+            border-collapse: separate;
+        }
+        .stat-col {
+            padding: 14px;
+            text-align: center;
+            background: rgba(8, 16, 28, 0.55);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .section-title {
+            color: #f0fdf4;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.07);
+            padding-bottom: 8px;
+            margin-top: 32px;
+            margin-bottom: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .threat-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .threat-table th {
+            text-align: left;
+            padding: 12px;
+            background: #020408;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .threat-table td {
+            padding: 12px;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .threat-table tr:last-child td {
+            border-bottom: none;
+        }
+        .email-footer {
+            background: #020408;
+            padding: 18px;
+            text-align: center;
+            font-size: 11px;
+            color: #475569;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h1>🛡️ SHIELD ANALYSIS SUMMARY</h1>
+        </div>
+        <div class="email-content">
+            <div class="risk-score-card">
+                <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1.5px; font-weight: 600;">Overall Risk Rating</div>
+                <div class="risk-val">{{risk_score}}/100</div>
+                <div style="font-weight: bold; color: {{risk_color}}; letter-spacing: 1px; font-size: 14px;">{{risk_text}} RISK LEVEL</div>
+            </div>
+            
+            <table class="stats-grid">
+                <tr>
+                    <td class="stat-col">
+                        <div style="font-size: 22px; font-weight: 800; color: #f0fdf4;">{{total_entries}}</div>
+                        <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Total Logs</div>
+                    </td>
+                    <td class="stat-col">
+                        <div style="font-size: 22px; font-weight: 800; color: #10b981;">{{unique_ips}}</div>
+                        <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Unique IPs</div>
+                    </td>
+                    <td class="stat-col">
+                        <div style="font-size: 22px; font-weight: 800; color: #8b5cf6;">{{threat_count}}</div>
+                        <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Threats Found</div>
+                    </td>
+                </tr>
+            </table>
+            
+            <div class="section-title">Severity Breakdown</div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">
+                <tr style="background: #020408;">
+                    <th style="padding: 12px; text-align: left; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Severity</th>
+                    <th style="padding: 12px; text-align: right; color: #94a3b8; font-weight: 600; text-transform: uppercase;">Count</th>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; color: #f43f5e; font-weight: bold;">🔴 CRITICAL</td>
+                    <td style="padding: 10px 12px; text-align: right; color: #f0fdf4; font-weight: bold;">{{critical_count}}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; color: #f97316; font-weight: bold;">🟠 HIGH</td>
+                    <td style="padding: 10px 12px; text-align: right; color: #f0fdf4; font-weight: bold;">{{high_count}}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; color: #eab308; font-weight: bold;">🟡 MEDIUM</td>
+                    <td style="padding: 10px 12px; text-align: right; color: #f0fdf4; font-weight: bold;">{{medium_count}}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; color: #3b82f6; font-weight: bold;">🔵 LOW</td>
+                    <td style="padding: 10px 12px; text-align: right; color: #f0fdf4; font-weight: bold;">{{low_count}}</td>
+                </tr>
+            </table>
+            
+            <div class="section-title">Top Threats Detail</div>
+            <table class="threat-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Severity</th>
+                        <th style="width: 45%;">Threat Type</th>
+                        <th style="width: 25%;">Source IP</th>
+                        <th style="width: 10%; text-align: right;">Hits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{threats_html}}
+                </tbody>
+            </table>
+            
+            <p style="font-size: 11px; color: #94a3b8; margin-top: 24px; line-height: 1.6;">
+                <em>Note: A full analysis report is attached to this email as a JSON file. Import it directly into the SHIELD dashboard to visualize the dynamic timelines, metrics, and complete log tracks.</em>
+            </p>
+        </div>
+        <div class="email-footer">
+            SHIELD Security Operations Center &bull; Automated Analysis Delivery
+        </div>
+    </div>
+</body>
+</html>
+<!-- SUMMARY_REPORT_END -->

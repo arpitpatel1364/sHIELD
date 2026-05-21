@@ -1049,5 +1049,172 @@ function toggleTheme() {
   }
 })();
 
+// ── Live Stream Implementation ──
+let isLiveStreaming = false;
+let liveTimerId = null;
+let liveCursor = 0;
+let liveFilePath = '';
+let liveLinesCount = 0;
+
+function liveMode() {
+  document.getElementById('live-area').style.display = 'block';
+  document.getElementById('paste-area').style.display = 'none';
+  document.getElementById('live-file-path').focus();
+}
+
+function closeLiveArea() {
+  stopLiveStream();
+  document.getElementById('live-area').style.display = 'none';
+}
+
+function stopLiveStream() {
+  isLiveStreaming = false;
+  if (liveTimerId) {
+    clearTimeout(liveTimerId);
+    liveTimerId = null;
+  }
+  
+  // Reset toggle button UI
+  const btn = document.getElementById('btn-toggle-live');
+  const icon = document.getElementById('btn-live-icon');
+  const text = document.getElementById('btn-live-text');
+  if (btn) {
+    btn.className = 'btn btn--primary';
+    btn.style = 'height: 42px;';
+    text.textContent = 'Start Live Stream';
+  }
+  if (icon) {
+    icon.setAttribute('data-lucide', 'play');
+  }
+  try { lucide.createIcons(); } catch (e) {}
+  
+  document.getElementById('live-pulsar').style.display = 'none';
+  document.getElementById('live-stats').textContent = 'Status: Offline';
+}
+
+function toggleLiveStream() {
+  if (isLiveStreaming) {
+    stopLiveStream();
+  } else {
+    startLiveStream();
+  }
+}
+
+function startLiveStream() {
+  const filePathInput = document.getElementById('live-file-path');
+  liveFilePath = filePathInput.value.trim();
+  
+  if (!liveFilePath) {
+    alert('Please enter a valid log file path.');
+    return;
+  }
+  
+  const readMode = document.getElementById('live-read-mode').value;
+  
+  isLiveStreaming = true;
+  liveLinesCount = 0;
+  
+  // Set toggle button UI to running
+  const btn = document.getElementById('btn-toggle-live');
+  const icon = document.getElementById('btn-live-icon');
+  const text = document.getElementById('btn-live-text');
+  if (btn) {
+    btn.className = 'btn btn--ghost';
+    btn.style.height = '42px';
+    btn.style.borderColor = 'var(--sev-critical)';
+    btn.style.color = 'var(--sev-critical)';
+    text.textContent = 'Stop Live Stream';
+  }
+  if (icon) {
+    icon.setAttribute('data-lucide', 'square');
+  }
+  try { lucide.createIcons(); } catch (e) {}
+  
+  document.getElementById('live-pulsar').style.display = 'block';
+  document.getElementById('live-stats').textContent = 'Status: Initializing...';
+  
+  if (readMode === 'tail') {
+    // Determine the current file end cursor first
+    fetch(`/api/live?file=${encodeURIComponent(liveFilePath)}&cursor=-1`)
+      .then(res => {
+        if (!res.ok) throw new Error('Could not tail file');
+        return res.json();
+      })
+      .then(data => {
+        liveCursor = data.cursor;
+        rawLogsText = ''; // Start clean
+        document.getElementById('live-stats').textContent = 'Status: Watching for new lines...';
+        document.getElementById('live-file-info').textContent = `Size: ${(data.file_size / 1024).toFixed(2)} KB`;
+        
+        // Start polling
+        pollLiveStream();
+      })
+      .catch(err => {
+        alert(`Error starting tail stream: ${err.message}`);
+        stopLiveStream();
+      });
+  } else {
+    // Read from beginning (cursor = 0)
+    liveCursor = 0;
+    rawLogsText = ''; // Clear previous logs
+    
+    // Clear page stats & charts during initialization
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('threats-section').style.display = 'none';
+    document.getElementById('risk-bar-wrap').style.display = 'none';
+    document.getElementById('charts-row').style.display = 'none';
+    document.getElementById('analytics-row').style.display = 'none';
+    document.getElementById('feed-section').style.display = 'none';
+    document.getElementById('exporters-row').style.display = 'none';
+    document.getElementById('inspector-content').style.display = 'none';
+    document.getElementById('inspector-placeholder').style.display = 'flex';
+    
+    pollLiveStream();
+  }
+}
+
+function pollLiveStream() {
+  if (!isLiveStreaming) return;
+  
+  fetch(`/api/live?file=${encodeURIComponent(liveFilePath)}&cursor=${liveCursor}`)
+    .then(res => {
+      if (!res.ok) throw new Error('Polling error');
+      return res.json();
+    })
+    .then(data => {
+      if (!isLiveStreaming) return; // check again after network latency
+      
+      const hasNewData = data.new_content && data.new_content.length > 0;
+      if (hasNewData) {
+        rawLogsText += data.new_content;
+        liveCursor = data.cursor;
+        
+        // Count lines
+        const addedLines = data.new_content.split('\n').filter(l => l.trim()).length;
+        liveLinesCount += addedLines;
+        
+        // Re-analyze and render
+        currentReport = analyze(rawLogsText);
+        renderReport(currentReport, 'Live: ' + liveFilePath, rawLogsText);
+      }
+      
+      document.getElementById('live-stats').textContent = `Status: Streaming | Read: ${liveLinesCount} lines`;
+      document.getElementById('live-file-info').textContent = `Cursor: ${liveCursor} B | Size: ${(data.file_size / 1024).toFixed(2)} KB`;
+      
+      // Schedule next poll (1.5 seconds)
+      liveTimerId = setTimeout(pollLiveStream, 1500);
+    })
+    .catch(err => {
+      console.error('Live log read error:', err);
+      document.getElementById('live-stats').textContent = `Status: Error - Retrying...`;
+      // Retry in 3 seconds
+      liveTimerId = setTimeout(pollLiveStream, 3000);
+    });
+}
+
 // Initialize Lucide
-lucide.createIcons();
+try {
+  lucide.createIcons();
+} catch (e) {
+  console.warn("Lucide failed to initialize:", e);
+}
