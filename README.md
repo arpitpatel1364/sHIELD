@@ -18,6 +18,18 @@ log_ids/
 
 ---
 
+## Key Features
+
+- **Interactive Terminal TUI**: Navigable console interface using arrow keys for running demo attacks, generating sample logs, and viewing reports directly.
+- **Comprehensive Rule Detection Engine**: Detects 14+ security threat classes including SQLi, XSS, LFI/RFI, Path Traversal, Brute Force, Web Shells, and Command Injection.
+- **Interactive Web Dashboard**: Beautiful dark-themed visual portal displaying threat severity breakdowns, timelines, and top offender statistics.
+- **Forensic Inspector**: Dedicated sidebar in the dashboard showing raw matched evidence, mitigation steps, and commands for rapid response.
+- **Real-Time Live Streaming**: High-performance, incremental byte-offset cursor polling to capture and stream live server events.
+- **Attack Simulations**: One-click demo generation to simulate multi-vector attacks and test defensive capabilities.
+- **SIEM & Pipeline Ready**: Clean stdout formatting, custom reports output, and pipe compatibility (`--stdin`) for CI/CD or logging pipelines.
+
+---
+
 ## System Architecture & Data Flow
 
 ### Overall System Design
@@ -36,7 +48,7 @@ When live log streaming is active, the dashboard polls the embedded web server i
 ### Interactive Menu (Recommended)
 Run the script without any arguments to open the interactive Terminal User Interface:
 ```bash
-python shield.py
+python3 shield.py
 ```
 **Controls:**
 * `↑` / `↓` (Arrow Keys) — Navigate menu options
