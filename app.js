@@ -621,77 +621,241 @@ function renderReport(r, source, rawText) {
   renderLogFeed(rawText);
 }
 
+// ── Timeline state ──
+let _tlKeys = [], _tlVals = [], _tlMax = 1, _tlPts = [];
+
 function renderTimeline(entriesOrBuckets) {
   let buckets = {};
   if (Array.isArray(entriesOrBuckets)) {
     for (const e of entriesOrBuckets) {
       const raw = e.raw || '';
       const m = raw.match(/\d{2}:\d{2}/);
-      if (m) { buckets[m[0]] = (buckets[m[0]]||0)+1; }
+      if (m) { buckets[m[0]] = (buckets[m[0]] || 0) + 1; }
     }
   } else if (entriesOrBuckets && typeof entriesOrBuckets === 'object') {
     buckets = entriesOrBuckets;
   }
-  const keys = Object.keys(buckets).sort();
-  const vals = keys.map(k=>buckets[k]);
-  const max  = Math.max(...vals, 1);
 
-  const canvas = document.getElementById('timeline-canvas');
-  const ctx = canvas.getContext('2d');
-  
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const W = rect.width || canvas.clientWidth || 400;
-  const H = rect.height || canvas.clientHeight || 180;
-  canvas.width = W * dpr;
+  const keys  = Object.keys(buckets).sort();
+  const vals  = keys.map(k => buckets[k]);
+  const max   = Math.max(...vals, 1);
+  const total = vals.reduce((a, b) => a + b, 0);
+  const peakVal = Math.max(...vals, 0);
+
+  // Update stat chips
+  const chips = document.getElementById('timeline-stat-chips');
+  if (chips) {
+    chips.style.display = 'flex';
+    document.getElementById('tl-total').textContent  = total.toLocaleString();
+    document.getElementById('tl-peak').textContent   = peakVal;
+    document.getElementById('tl-window').textContent = keys.length;
+  }
+
+  const canvas   = document.getElementById('timeline-canvas');
+  const emptyMsg = document.getElementById('timeline-empty-msg');
+  const ctx      = canvas.getContext('2d');
+
+  if (!keys.length) {
+    canvas.style.opacity = '0';
+    if (emptyMsg) emptyMsg.style.display = 'flex';
+    return;
+  }
+  canvas.style.opacity = '1';
+  if (emptyMsg) emptyMsg.style.display = 'none';
+
+  const dpr  = window.devicePixelRatio || 1;
+  const wrap = document.getElementById('timeline-wrap') || canvas.parentElement;
+  const W    = wrap.clientWidth  || 700;
+  const H    = wrap.clientHeight || 240;
+  canvas.width  = W * dpr;
   canvas.height = H * dpr;
   ctx.scale(dpr, dpr);
-  
+
+  _tlKeys = keys; _tlVals = vals; _tlMax = max;
+
+  const PAD_L = 52, PAD_R = 20, PAD_T = 20, PAD_B = 34;
+  const cW = W - PAD_L - PAD_R;
+  const cH = H - PAD_T - PAD_B;
+  const bw = cW / Math.max(keys.length - 1, 1);
+
   ctx.clearRect(0, 0, W, H);
 
-  if (!keys.length) return;
-  const bw = W / keys.length;
-  
-  // Custom Area Chart design (cyber theme)
-  const points = keys.map((k, i) => ({
-    x: i * bw + bw / 2,
-    y: H - (vals[i] / max) * (H - 24) - 4
+  const isDark    = document.body.getAttribute('data-theme') !== 'light';
+  const gridColor = isDark ? 'rgba(255,255,255,0.04)'  : 'rgba(0,0,0,0.05)';
+  const lblColor  = isDark ? 'rgba(148,163,184,0.5)'   : 'rgba(71,85,105,0.6)';
+  const accentRGB = isDark ? '16,185,129'               : '5,150,105';
+  const violetRGB = isDark ? '139,92,246'               : '124,58,237';
+
+  // Y grid lines + labels
+  const yLines = 4;
+  for (let i = 0; i <= yLines; i++) {
+    const y    = PAD_T + (cH / yLines) * i;
+    const yVal = Math.round(max - (max / yLines) * i);
+    ctx.save();
+    ctx.setLineDash([3, 6]);
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle  = lblColor;
+    ctx.font       = `600 9px 'Geist Mono',monospace`;
+    ctx.textAlign  = 'right';
+    ctx.fillText(yVal, PAD_L - 8, y + 3.5);
+  }
+
+  // Bezier points
+  const pts = keys.map((k, i) => ({
+    x: PAD_L + i * bw,
+    y: PAD_T + cH - (vals[i] / max) * cH
   }));
+  _tlPts = pts;
 
-  // Create gradient
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, 'rgba(0, 212, 255, 0.25)');
-  grad.addColorStop(1, 'rgba(0, 212, 255, 0.0)');
-
-  // Draw Area
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, PAD_T, 0, H - PAD_B);
+  grad.addColorStop(0,    `rgba(${accentRGB}, 0.24)`);
+  grad.addColorStop(0.55, `rgba(${accentRGB}, 0.07)`);
+  grad.addColorStop(1,    `rgba(${accentRGB}, 0.0)`);
   ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(points[0].x, H);
-  points.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(points[points.length-1].x, H);
+  ctx.moveTo(pts[0].x, H - PAD_B);
+  ctx.lineTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const cpX = (pts[i-1].x + pts[i].x) / 2;
+    ctx.bezierCurveTo(cpX, pts[i-1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
+  }
+  ctx.lineTo(pts[pts.length - 1].x, H - PAD_B);
   ctx.closePath();
   ctx.fill();
 
-  // Draw Line
-  ctx.strokeStyle = 'var(--accent)';
-  ctx.lineWidth = 2.5;
+  // Stroke with glow
+  ctx.save();
+  ctx.shadowColor = `rgba(${accentRGB}, 0.45)`;
+  ctx.shadowBlur  = 9;
+  ctx.strokeStyle = `rgba(${accentRGB}, 1)`;
+  ctx.lineWidth   = 2.2;
+  ctx.lineJoin    = 'round';
   ctx.beginPath();
-  points.forEach((p, i) => {
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-  });
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const cpX = (pts[i-1].x + pts[i].x) / 2;
+    ctx.bezierCurveTo(cpX, pts[i-1].y, cpX, pts[i].y, pts[i].x, pts[i].y);
+  }
   ctx.stroke();
+  ctx.restore();
 
-  // Draw timeline labels
-  ctx.fillStyle = 'var(--text-dim)';
-  ctx.font = '9px monospace';
-  const skip = Math.ceil(keys.length / 8);
-  keys.forEach((k, i) => {
-    if (i % skip === 0) {
-      ctx.fillText(k, i * bw, H - 2);
+  // Vertical drop line at peak
+  const peakIdx = vals.indexOf(peakVal);
+  ctx.save();
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = `rgba(${violetRGB}, 0.3)`;
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(pts[peakIdx].x, pts[peakIdx].y + 6);
+  ctx.lineTo(pts[peakIdx].x, H - PAD_B);
+  ctx.stroke();
+  ctx.restore();
+
+  // Dots
+  pts.forEach((p, i) => {
+    const isPeak = (i === peakIdx);
+    if (isPeak) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${violetRGB}, 0.12)`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${violetRGB}, 0.2)`;
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.shadowColor = isPeak ? `rgba(${violetRGB}, 0.85)` : `rgba(${accentRGB}, 0.65)`;
+    ctx.shadowBlur  = isPeak ? 12 : 7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, isPeak ? 4.5 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = isPeak ? `rgb(${violetRGB})` : `rgb(${accentRGB})`;
+    ctx.fill();
+    ctx.restore();
+    if (isPeak) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fill();
     }
   });
+
+  // X-axis labels
+  ctx.fillStyle  = lblColor;
+  ctx.font       = `600 9px 'Geist Mono',monospace`;
+  ctx.textAlign  = 'center';
+  const skip = Math.max(1, Math.ceil(keys.length / 8));
+  keys.forEach((k, i) => {
+    if (i % skip === 0) ctx.fillText(k, pts[i].x, H - PAD_B + 15);
+  });
+
+  // Baseline
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, H - PAD_B);
+  ctx.lineTo(W - PAD_R, H - PAD_B);
+  ctx.stroke();
+
+  _attachTimelineTooltip(canvas, pts, keys, vals, max, W, H, PAD_B);
 }
+
+function _attachTimelineTooltip(canvas, pts, keys, vals, max, W, H, PAD_B) {
+  const tooltip = document.getElementById('timeline-tooltip');
+  const ttTime  = document.getElementById('tt-time');
+  const ttCount = document.getElementById('tt-count');
+  const ttBar   = document.getElementById('tt-bar');
+  if (!tooltip) return;
+
+  if (canvas._tlMove)  canvas.removeEventListener('mousemove',  canvas._tlMove);
+  if (canvas._tlLeave) canvas.removeEventListener('mouseleave', canvas._tlLeave);
+
+  canvas._tlMove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx   = e.clientX - rect.left;
+    let nearest = 0, minDist = Infinity;
+    pts.forEach((p, i) => {
+      const d = Math.abs(p.x - mx);
+      if (d < minDist) { minDist = d; nearest = i; }
+    });
+    if (minDist > 52) { tooltip.style.display = 'none'; return; }
+
+    ttTime.textContent  = keys[nearest];
+    ttCount.textContent = `${vals[nearest].toLocaleString()} req${vals[nearest] !== 1 ? 's' : ''}`;
+    if (ttBar) ttBar.style.width = Math.round((vals[nearest] / max) * 90) + 'px';
+
+    let left = pts[nearest].x + 14;
+    if (left + 120 > W) left = pts[nearest].x - 132;
+    tooltip.style.left    = left + 'px';
+    tooltip.style.top     = Math.max(6, pts[nearest].y - 42) + 'px';
+    tooltip.style.display = 'flex';
+  };
+
+  canvas._tlLeave = () => { tooltip.style.display = 'none'; };
+  canvas.addEventListener('mousemove',  canvas._tlMove);
+  canvas.addEventListener('mouseleave', canvas._tlLeave);
+}
+
+// Redraw on resize
+(function () {
+  let _tlResizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(_tlResizeTimer);
+    _tlResizeTimer = setTimeout(() => {
+      if (_tlKeys.length) {
+        const buckets = {};
+        _tlKeys.forEach((k, i) => { buckets[k] = _tlVals[i]; });
+        renderTimeline(buckets);
+      }
+    }, 120);
+  });
+})();
+
 
 function setFilter(level, btn) {
   activeFilter = level;
@@ -854,6 +1018,36 @@ function updateClock() {
 }
 setInterval(updateClock, 1000);
 updateClock();
+
+// Theme Toggle
+function toggleTheme() {
+  const body = document.body;
+  const currentTheme = body.getAttribute('data-theme');
+  const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  body.setAttribute('data-theme', nextTheme);
+  localStorage.setItem('shield-theme', nextTheme);
+  const iconLight = document.getElementById('theme-icon-light');
+  const iconDark  = document.getElementById('theme-icon-dark');
+  if (nextTheme === 'light') {
+    iconLight.style.display = 'block';
+    iconDark.style.display  = 'none';
+  } else {
+    iconLight.style.display = 'none';
+    iconDark.style.display  = 'block';
+  }
+}
+
+// Restore saved theme
+(function() {
+  const saved = localStorage.getItem('shield-theme') || 'dark';
+  document.body.setAttribute('data-theme', saved);
+  const iconLight = document.getElementById('theme-icon-light');
+  const iconDark  = document.getElementById('theme-icon-dark');
+  if (iconLight && iconDark) {
+    iconLight.style.display = saved === 'light' ? 'block' : 'none';
+    iconDark.style.display  = saved === 'dark'  ? 'block' : 'none';
+  }
+})();
 
 // Initialize Lucide
 lucide.createIcons();

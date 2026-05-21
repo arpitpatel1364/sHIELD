@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
-<body>
+<body data-theme="dark">
 
   <!-- ── Ambient background layers ── -->
   <div class="ambient-layer" aria-hidden="true">
@@ -45,6 +45,10 @@
       <div class="topbar-meta" id="meta-info">
         <span class="meta-label">AWAITING LOG INPUT</span>
       </div>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+        <i data-lucide="sun" id="theme-icon-light" style="display:none"></i>
+        <i data-lucide="moon" id="theme-icon-dark"></i>
+      </button>
     </div>
   </header>
 
@@ -143,13 +147,55 @@
     <div class="charts-row" id="charts-row" style="display:none">
       <div class="card chart-card" id="timeline-card">
         <div class="card-header">
-          <span class="card-label">REQUEST VOLUMETRICS</span>
-          <span class="card-badge">TIMELINE</span>
+          <div class="timeline-header-left">
+            <span class="card-label">REQUEST VOLUMETRICS</span>
+            <div class="timeline-stat-chips" id="timeline-stat-chips" style="display:none">
+              <span class="tl-chip tl-chip--total">
+                <span class="tl-chip-val" id="tl-total">—</span>
+                <span class="tl-chip-label">Total</span>
+              </span>
+              <span class="tl-chip tl-chip--peak">
+                <span class="tl-chip-val" id="tl-peak">—</span>
+                <span class="tl-chip-label">Peak / min</span>
+              </span>
+              <span class="tl-chip tl-chip--window">
+                <span class="tl-chip-val" id="tl-window">—</span>
+                <span class="tl-chip-label">Buckets</span>
+              </span>
+            </div>
+          </div>
+          <div class="timeline-header-right">
+            <span class="tl-live-dot"></span>
+            <span class="card-badge">LIVE TIMELINE</span>
+          </div>
         </div>
-        <div class="timeline-container">
+
+        <div class="timeline-container" id="timeline-wrap">
           <canvas id="timeline-canvas"></canvas>
+          <div class="timeline-tooltip" id="timeline-tooltip" style="display:none">
+            <span class="tt-label">TIME</span>
+            <span class="tt-time" id="tt-time">—</span>
+            <span class="tt-count" id="tt-count">0 reqs</span>
+            <div class="tt-bar" id="tt-bar"></div>
+          </div>
+          <div class="timeline-empty-msg" id="timeline-empty-msg" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span>No time-series data available</span>
+          </div>
+        </div>
+
+        <div class="timeline-footer">
+          <span class="tl-footer-hint">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Hover chart for details
+          </span>
+          <div class="tl-footer-legend">
+            <span class="tl-leg-item"><span class="tl-leg-dot tl-leg-dot--accent"></span>Volume</span>
+            <span class="tl-leg-item"><span class="tl-leg-dot tl-leg-dot--peak"></span>Peak</span>
+          </div>
         </div>
       </div>
+
       <div class="card chart-card" id="severity-card">
         <div class="card-header">
           <span class="card-label">THREAT SEVERITY MATRIX</span>
